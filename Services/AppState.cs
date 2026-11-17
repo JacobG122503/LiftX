@@ -460,6 +460,7 @@ public class AppState
         return new FinishPreview(done, unchecked_, w.Exercises.Count(e => e.Sets.Any(s => s.Done)), volume, prs, changed, routine?.Name);
     }
 
+    /// <summary>Same exercises, same order, same number of set rows?</summary>
     private static bool RoutineMatches(Routine r, Workout w)
     {
         if (r.Exercises.Count != w.Exercises.Count) return false;
@@ -469,24 +470,30 @@ public class AppState
         return true;
     }
 
-    /// <summary>Moves the live lift into history. Returns false if there was nothing to save.</summary>
-    public bool FinishActive(bool includeUnchecked, bool updateRoutine)
+    /// <summary>
+    /// Moves the live lift into history. <paramref name="updateRoutine"/> (null = not asked) makes the routine
+    /// match this lift's exercises, order and set rows.
+    /// Weights/reps never live in the routine: next time always pre-fills with what you did last.
+    /// Returns false if there was nothing to save.
+    /// </summary>
+    public bool FinishActive(bool includeUnchecked, bool? updateRoutine)
     {
         if (Active == null) return false;
         var w = Json.Clone(Active);
         foreach (var e in w.Exercises)
-        {
-            e.Sets = e.Sets.Where(s => s.Done || (includeUnchecked && s.HasValues)).ToList();
-            foreach (var s in e.Sets) s.Done = false;
-        }
+            e.Sets = e.Sets.Where(s => s.Done || (includeUnchecked && s.HasValues)).Select(s => s.Values()).ToList();
         w.Exercises.RemoveAll(e => e.Sets.Count == 0);
         if (string.IsNullOrWhiteSpace(w.Notes)) w.Notes = null;
         if (w.Exercises.Count == 0) return false;
 
-        if (updateRoutine && Active.RoutineId != null && Data.Routines.FirstOrDefault(r => r.Id == Active.RoutineId) is { } routine)
-            routine.Exercises = Active.Exercises
-                .Select(e => new RoutineExercise { Name = e.Name, Sets = Math.Max(1, e.Sets.Count) })
-                .ToList();
+        if (updateRoutine is bool update && Active.RoutineId != null && Data.Routines.FirstOrDefault(r => r.Id == Active.RoutineId) is { } routine)
+        {
+            // Set rows, not checked sets: skipping a set one day doesn't shrink the routine
+            if (update)
+                routine.Exercises = Active.Exercises
+                    .Select(e => new RoutineExercise { Name = e.Name, Sets = Math.Max(1, e.Sets.Count) })
+                    .ToList();
+        }
 
         foreach (var e in w.Exercises) EnsureDef(e.Name);
         Data.Workouts.Add(w);
@@ -498,6 +505,15 @@ public class AppState
         SaveData();
         return true;
     }
+
+    // ── Stats ────────────────────────────────────────────────────────────
+
+    private StatsSnapshot? _stats;
+
+    /// <summary>Stats for all finished lifts, rebuilt only when the data changes.</summary>
+    public StatsSnapshot Stats => _stats is { } st && st.Version == Version
+        ? st
+        : _stats = StatsEngine.Build(Data.Workouts, TypeOf, Version);
 
     // ── Editing past lifts ───────────────────────────────────────────────
 
@@ -568,7 +584,11 @@ public class AppState
     {
         Id = r.Id,
         Name = r.Name,
-        Exercises = r.Exercises.Select(e => new RoutineExercise { Name = e.Name, Sets = e.Sets }).ToList()
+        Exercises = r.Exercises.Select(e => new RoutineExercise
+        {
+            Name = e.Name,
+            Sets = e.Sets
+        }).ToList()
     };
 
     public void BeginEditRoutine(Routine? r)
@@ -625,7 +645,11 @@ public class AppState
         Data.Routines.Add(new Routine
         {
             Name = name.Trim(),
-            Exercises = w.Exercises.Select(e => new RoutineExercise { Name = e.Name, Sets = Math.Max(1, e.Sets.Count) }).ToList()
+            Exercises = w.Exercises.Select(e => new RoutineExercise
+            {
+                Name = e.Name,
+                Sets = Math.Max(1, e.Sets.Count)
+            }).ToList()
         });
         SaveData();
     }

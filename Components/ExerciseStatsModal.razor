@@ -1,0 +1,26 @@
+@* Full-screen chart + stats for one exercise. Opened by tapping an exercise anywhere in the app. *@
+@inject AppState S
+
+@{
+    var st = S.Stats;
+}
+
+@if (st.Summaries.TryGetValue(Name, out var data) && data.Count > 0)
+{
+    <ExerciseCard ModalOnly="true" ExerciseName="@Name" Type="@st.Types[Name]" AllData="@data" OnClose="OnClose" />
+}
+else
+{
+    <div class="overlay overlay--top" @onclick="OnClose">
+        <div class="dialog" @onclick:stopPropagation="true">
+            <div class="dialog-title">@Name</div>
+            <div class="dialog-msg">No finished lifts with this exercise yet. Its chart shows up once you finish a lift with it.</div>
+            <div class="dialog-btns"><button class="btn btn-accent" @onclick="OnClose">OK</button></div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+}

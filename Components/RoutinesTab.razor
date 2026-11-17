@@ -46,13 +46,15 @@
             </div>
             @foreach (var ex in shown)
             {
-                <div class="routine-ex">
+                var exName = ex.Name;
+                <button class="routine-ex" @onclick="() => _statsFor = exName">
                     <ExAvatar Name="@ex.Name" />
                     <div class="row-main">
                         <div class="row-title">@ex.Name</div>
                         <div class="row-sub">@ex.Sets @(ex.Sets == 1 ? "set" : "sets")</div>
                     </div>
-                </div>
+                    <Icon Name="chart" Size="18" Class="row-chart-hint" />
+                </button>
             }
             <div class="routine-foot">
                 @if (more > 0)
@@ -73,8 +75,14 @@
     }
 }
 
+@if (_statsFor != null)
+{
+    <ExerciseStatsModal Name="@_statsFor" OnClose="() => _statsFor = null" />
+}
+
 @code {
     private bool _collapsed;
+    private string? _statsFor;
     private readonly HashSet<string> _expanded = new();
 
     private void ToggleExpand(Routine r)

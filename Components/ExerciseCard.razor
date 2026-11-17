@@ -8,6 +8,8 @@
     var trend = TrendDir;
 }
 
+@if (!ModalOnly)
+{
 <div class="exercise-card @(!_filteredData.Any() && _selectedDays != 0 ? "card--no-data" : "")" @onclick="OpenFullscreen">
     <div class="card-header">
         <div class="card-title-area">
@@ -53,10 +55,11 @@
         @CardStats()
     }
 </div>
+}
 
 @if (_fullscreen)
 {
-    <div class="fs-overlay" @onclick="CloseFullscreen">
+    <div class="fs-overlay @(ModalOnly ? "fs-overlay--top" : "")" @onclick="CloseFullscreen">
         <div class="fs-modal" @onclick:stopPropagation="true">
             <div class="fs-header">
                 <div>
@@ -102,6 +105,9 @@
     [Parameter] public List<ExerciseSummary> AllData { get; set; } = new();
     [Parameter] public string? MetricOverride { get; set; }
     [Parameter] public int? DaysOverride { get; set; }
+    /// <summary>Show only the full-screen chart (opened from elsewhere in the app), no card.</summary>
+    [Parameter] public bool ModalOnly { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
 
     private string _canvasId = "";
     private string _fullscreenCanvasId = "";
@@ -128,6 +134,7 @@
     {
         _canvasId = $"chart-{Guid.NewGuid():N}";
         _fullscreenCanvasId = $"chart-fs-{Guid.NewGuid():N}";
+        _fullscreen = ModalOnly;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -150,6 +157,16 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (ModalOnly)
+        {
+            if (firstRender)
+            {
+                _renderedKey = (AllData, _selectedMetric, _selectedDays);
+                await RenderChartOnCanvas(_fullscreenCanvasId);
+                _chartRendered = true;
+            }
+            return;
+        }
         if (firstRender || !_chartRendered)
         {
             await RenderChart();
@@ -215,6 +232,7 @@
     {
         _fullscreen = false;
         try { await JS.InvokeVoidAsync("chartInterop.destroyChart", _fullscreenCanvasId); } catch { }
+        if (ModalOnly) await OnClose.InvokeAsync();
     }
 
     private async Task RenderChartOnCanvas(string canvasId)

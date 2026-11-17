@@ -12,8 +12,10 @@
 
 <div class="ex-card">
     <div class="ex-head">
-        <ExAvatar Name="@Exercise.Name" />
-        <button class="ex-name" @onclick="() => _collapsed = !_collapsed">@Exercise.Name</button>
+        <button class="ex-stats-tap" @onclick="() => _stats = true" aria-label="Stats for @Exercise.Name">
+            <ExAvatar Name="@Exercise.Name" />
+            <span class="ex-name">@Exercise.Name</span>
+        </button>
         <button class="icon-btn accent" @onclick="() => _collapsed = !_collapsed" aria-label="Collapse">
             <Icon Name="@(_collapsed ? "chevron-down" : "chevron-up")" Stroke="2.6" />
         </button>
@@ -29,7 +31,6 @@
 
         <div class="set-grid set-head @gridClass">
             <div>SET</div>
-            <div>PREV</div>
             @if (cols.First != null)
             {
                 <div>@cols.First</div>
@@ -52,19 +53,18 @@
             var ph = Placeholder(idx, prev);
             <div class="set-grid set-row @gridClass @(set.Done ? "done" : "")" @key="set">
                 <button class="set-num" @onclick="() => SetMenu(idx)">@(idx + 1)</button>
-                <button class="set-prev" @onclick="() => CopyPrev(idx, prev)">@PrevText(idx, prev, type)</button>
 
                 @switch (type)
                 {
                     case ExerciseType.Weight:
                     case ExerciseType.Assisted:
-                        <input class="set-input" type="number" inputmode="decimal" step="any" min="0"
+                        <input class="set-input" type="number" step="any" min="0" enterkeyhint="next"
                                placeholder="@ExerciseInfo.Num(ph?.Weight)" @bind="set.Weight" @bind:after="Changed" />
-                        <input class="set-input" type="number" inputmode="numeric" pattern="[0-9]*" min="0"
+                        <input class="set-input" type="number" min="0" enterkeyhint="done"
                                placeholder="@ph?.Reps" @bind="set.Reps" @bind:after="Changed" />
                         break;
                     case ExerciseType.Reps:
-                        <input class="set-input span2" type="number" inputmode="numeric" pattern="[0-9]*" min="0"
+                        <input class="set-input span2" type="number" min="0" enterkeyhint="done"
                                placeholder="@ph?.Reps" @bind="set.Reps" @bind:after="Changed" />
                         break;
                     case ExerciseType.Duration:
@@ -74,7 +74,7 @@
                         break;
                     case ExerciseType.Cardio:
                     case ExerciseType.Stairs:
-                        <input class="set-input" type="number" inputmode="decimal" step="any" min="0"
+                        <input class="set-input" type="number" step="any" min="0" enterkeyhint="next"
                                placeholder="@ExerciseInfo.Num(ph?.Distance)" @bind="set.Distance" @bind:after="Changed" />
                         <input class="set-input set-input--time" type="text" inputmode="numeric" autocomplete="off"
                                placeholder="@(ph?.Seconds != null ? ExerciseInfo.FormatTime(ph.Seconds) : "m:ss")"
@@ -95,6 +95,11 @@
     }
 </div>
 
+@if (_stats)
+{
+    <ExerciseStatsModal Name="@Exercise.Name" OnClose="() => _stats = false" />
+}
+
 @code {
     [Parameter, EditorRequired] public Workout Workout { get; set; } = default!;
     [Parameter, EditorRequired] public WorkoutExercise Exercise { get; set; } = default!;
@@ -103,31 +108,20 @@
     [Parameter] public EventCallback OnMenu { get; set; }
 
     private bool _collapsed;
+    private bool _stats;
 
     private Task Changed() => OnChanged.InvokeAsync();
 
-    /// <summary>What to show greyed out in an empty input: last session's matching set, else the set above.</summary>
+    /// <summary>
+    /// What to show greyed out in an empty input: what you did on this set last time
+    /// (or your last set, if you're doing more sets than last time), else the set above.
+    /// </summary>
     private SetEntry? Placeholder(int idx, List<SetEntry>? prev)
     {
         if (prev is { Count: > 0 }) return prev[Math.Min(idx, prev.Count - 1)];
         for (int i = idx - 1; i >= 0; i--)
             if (Exercise.Sets[i].HasValues) return Exercise.Sets[i];
         return null;
-    }
-
-    private static string PrevText(int idx, List<SetEntry>? prev, ExerciseType type) =>
-        prev != null && idx < prev.Count ? ExerciseInfo.FormatSet(prev[idx], type) : "-";
-
-    private async Task CopyPrev(int idx, List<SetEntry>? prev)
-    {
-        if (prev == null || idx >= prev.Count) return;
-        var src = prev[idx];
-        var set = Exercise.Sets[idx];
-        set.Weight = src.Weight;
-        set.Reps = src.Reps;
-        set.Distance = src.Distance;
-        set.Seconds = src.Seconds;
-        await Changed();
     }
 
     private async Task SetTime(SetEntry set, ChangeEventArgs e)

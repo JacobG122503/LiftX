@@ -29,8 +29,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # Stamps the exact push time + commit into the app (shown at the bottom of Settings)
       - name: Publish
-        run: dotnet publish LiftX.csproj -c Release -o publish
+        env:
+          PUSHED_AT: ${{ github.event.repository.pushed_at }}
+        run: |
+          if [ -n "$PUSHED_AT" ]; then
+            STAMP=$(date -u -d "@$PUSHED_AT" +%Y-%m-%dT%H:%M:%SZ)
+          else
+            STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          fi
+          dotnet publish LiftX.csproj -c Release -o publish -p:LiftXPushedAt=$STAMP -p:LiftXCommit=${GITHUB_SHA::7}
 
       # index.html uses <base href="./">, so no base-path rewriting is needed for /<repo>/
       - name: Add .nojekyll

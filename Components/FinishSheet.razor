@@ -5,6 +5,8 @@
 @{
     var p = _preview!;
     var nothing = p.DoneSets == 0 && !(_includeUnchecked && p.UncheckedWithValues > 0);
+    var needsAnswer = p.RoutineChanged && _updateRoutine == null;
+    var blocked = nothing || needsAnswer;
 }
 
 <div class="overlay overlay--bottom" @onclick="OnClose">
@@ -44,12 +46,13 @@
 
         @if (p.RoutineChanged)
         {
-            <div class="sheet-row">
-                <div class="sheet-row-main">
-                    <div class="row-title">Update “@p.RoutineName”</div>
-                    <div class="row-sub">Make the routine match this lift's exercises &amp; sets</div>
+            <div class="sheet-row sheet-row--stack routine-update-row">
+                <div class="row-title">Update “@p.RoutineName”?</div>
+                <div class="row-sub">You changed the exercises or sets. Save them to the routine for next time?</div>
+                <div class="yes-no">
+                    <button class="yes-no-btn @(_updateRoutine == false ? "on" : "")" @onclick="() => _updateRoutine = false">No</button>
+                    <button class="yes-no-btn @(_updateRoutine == true ? "on" : "")" @onclick="() => _updateRoutine = true">Yes</button>
                 </div>
-                <Toggle @bind-Value="_updateRoutine" />
             </div>
         }
 
@@ -59,10 +62,10 @@
         }
 
         <div class="finish-actions">
-            <button class="btn-3d btn-wide" disabled="@nothing" @onclick="FinishAndSave">
+            <button class="btn-3d btn-wide" disabled="@blocked" @onclick="FinishAndSave">
                 <Icon Name="save" Stroke="2.6" /> Finish &amp; Save to Files
             </button>
-            <button class="btn-soft btn-wide" disabled="@nothing" @onclick="FinishOnly">Finish (save to Files later)</button>
+            <button class="btn-soft btn-wide" disabled="@blocked" @onclick="FinishOnly">Finish (save to Files later)</button>
             <button class="btn-ghost btn-wide danger" @onclick="Discard">Discard lift</button>
         </div>
     </div>
@@ -73,13 +76,18 @@
 
     private AppState.FinishPreview? _preview;
     private bool _includeUnchecked = true;
-    private bool _updateRoutine;
+    private bool? _updateRoutine = false; // "No" by default: the routine only changes if you tap Yes
 
-    protected override void OnInitialized() => _preview = S.PreviewFinish();
+    protected override void OnInitialized()
+    {
+        _preview = S.PreviewFinish();
+    }
 
     private bool Finish()
     {
-        if (!S.FinishActive(_includeUnchecked, _updateRoutine)) return false;
+        // Only counts as an answer if the question was actually shown
+        if (_preview!.RoutineChanged && _updateRoutine == null) return false;
+        if (!S.FinishActive(_includeUnchecked, _preview.RoutineChanged ? _updateRoutine : null)) return false;
         Timer.Stop();
         return true;
     }

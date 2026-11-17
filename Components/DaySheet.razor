@@ -40,7 +40,7 @@
                 {
                     var type = S.TypeOf(e.Name);
                     <div class="dw-ex">
-                        <div class="dw-ex-name">@e.Name</div>
+                        <button class="dw-ex-name" @onclick="() => _statsFor = e.Name">@e.Name <Icon Name="chart" Size="15" /></button>
                         <div class="dw-sets">@string.Join(",  ", e.Sets.Select(s => ExerciseInfo.FormatSet(s, type)))</div>
                     </div>
                 }
@@ -56,7 +56,13 @@
     </div>
 </div>
 
+@if (_statsFor != null)
+{
+    <ExerciseStatsModal Name="@_statsFor" OnClose="() => _statsFor = null" />
+}
+
 @code {
+    private string? _statsFor;
     [Parameter] public DateOnly Day { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 

@@ -121,6 +121,23 @@
         if (document.visibilityState === 'visible') acquireLock();
     });
 
+    // ── Return key in a set row: weight → reps → check the set ──
+    // Done here instead of in C# so the typed value is committed (blur) before the check runs.
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        const el = e.target;
+        if (!el || !el.classList || !el.classList.contains('set-input')) return;
+        const row = el.closest('.set-row');
+        if (!row) return;
+        e.preventDefault();
+        const inputs = Array.from(row.querySelectorAll('.set-input'));
+        const i = inputs.indexOf(el);
+        if (i >= 0 && i < inputs.length - 1) { inputs[i + 1].focus(); return; }
+        el.blur();
+        const check = row.querySelector('.check');
+        if (check && !row.classList.contains('done')) setTimeout(function () { check.click(); }, 50);
+    });
+
     // ── Misc UI helpers ──
     L.scrollTop = function () { window.scrollTo(0, 0); };
     L.scrollToBottom = function () {

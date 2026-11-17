@@ -16,6 +16,7 @@
             <button class="btn-soft" @onclick="Rename"><Icon Name="edit" Size="18" /> Rename</button>
             <button class="btn-soft" @onclick="EditRest"><Icon Name="timer" Size="18" /> Rest: @ExerciseInfo.FormatRest(S.RestFor(Def.Name))</button>
         </div>
+        <button class="btn-soft btn-wide" @onclick="() => _statsFor = Def.Name"><Icon Name="chart" Size="18" /> View stats &amp; chart</button>
 
         <label class="field-label" for="ex-type">Tracks</label>
         <select id="ex-type" class="input" @bind="Def.Type" @bind:after="Save">
@@ -46,7 +47,13 @@
     </div>
 </div>
 
+@if (_statsFor != null)
+{
+    <ExerciseStatsModal Name="@_statsFor" OnClose="() => _statsFor = null" />
+}
+
 @code {
+    private string? _statsFor;
     [Parameter, EditorRequired] public ExerciseDef Def { get; set; } = default!;
     [Parameter] public EventCallback OnClose { get; set; }
 

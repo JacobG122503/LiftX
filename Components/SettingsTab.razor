@@ -115,13 +115,26 @@
 <section class="settings-section">
     <div class="settings-title">About</div>
     <div class="card settings-card about">
-        <div><strong>LiftX</strong> · last updated @BuildDate</div>
+        <div><strong>LiftX</strong></div>
         <div class="muted">
             @S.Data.Workouts.Count workouts · @S.Library.Count() exercises · @S.Data.Routines.Count routines
         </div>
         <button class="btn-ghost btn-wide danger" @onclick="Erase"><Icon Name="trash" Size="18" /> Erase all data on this phone</button>
     </div>
 </section>
+
+<footer class="update-stamp">
+    @if (string.IsNullOrEmpty(BuildInfo.Commit))
+    {
+        <div>Local build</div>
+        <div>@BuildDate</div>
+    }
+    else
+    {
+        <div>Last update pushed</div>
+        <div>@BuildDate · @BuildInfo.Commit</div>
+    }
+</footer>
 
 @code {
     private static readonly (string Name, string Hex)[] Backgrounds =
@@ -142,7 +155,7 @@
     {
         get
         {
-            try { return DateTime.Parse(BuildInfo.BuildDateUtc, null, System.Globalization.DateTimeStyles.RoundtripKind).ToLocalTime().ToString("MMM d, yyyy h:mm tt"); }
+            try { return DateTime.Parse(BuildInfo.BuildDateUtc, null, System.Globalization.DateTimeStyles.RoundtripKind).ToLocalTime().ToString("MMM d, yyyy 'at' h:mm:ss tt"); }
             catch { return "?"; }
         }
     }

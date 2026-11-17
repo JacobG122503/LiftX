@@ -107,6 +107,8 @@ public class SetEntry
     public bool HasValues => Weight != null || Reps != null || Distance != null || Seconds != null;
 
     public SetEntry Clone() => new() { Weight = Weight, Reps = Reps, Distance = Distance, Seconds = Seconds, Done = Done };
+    /// <summary>Copy of just the numbers (no "done" flag).</summary>
+    public SetEntry Values() => new() { Weight = Weight, Reps = Reps, Distance = Distance, Seconds = Seconds };
 }
 
 /// <summary>Small bookkeeping stored next to the data (not part of the save file).</summary>

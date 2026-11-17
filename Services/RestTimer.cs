@@ -17,11 +17,15 @@ public class RestTimer
     {
         _s = s;
         _js = (IJSInProcessRuntime)js;
-        if (s.Meta.RestEndsUtc is { } ends && ends > DateTime.UtcNow)
+        if (s.Meta.RestEndsUtc is { } ends)
         {
-            EndsUtc = ends;
-            Total = Math.Max(1, s.Meta.RestTotal);
-            EnsureLoop();
+            if (ends > DateTime.UtcNow)
+            {
+                EndsUtc = ends;
+                Total = Math.Max(1, s.Meta.RestTotal);
+                EnsureLoop();
+            }
+            else if (s.Active != null) FinishedUtc = ends; // ran out while the app was closed
         }
     }
 
@@ -33,7 +37,8 @@ public class RestTimer
     public double RemainingExact => EndsUtc is { } e ? Math.Max(0, (e - DateTime.UtcNow).TotalSeconds) : 0;
     public int Remaining => (int)Math.Ceiling(RemainingExact);
     public double Progress => Total > 0 ? Math.Clamp(RemainingExact / Total, 0, 1) : 0;
-    public bool ShowingDone => FinishedUtc is { } f && (DateTime.UtcNow - f).TotalSeconds < 4;
+    /// <summary>Rest ran out and the next set hasn't been checked yet (shows "Done" in the top bar).</summary>
+    public bool ShowingDone => FinishedUtc != null && !Running;
 
     public event Action? Tick;
 
@@ -83,7 +88,7 @@ public class RestTimer
     {
         try
         {
-            while (Running || ShowingDone)
+            while (Running)
             {
                 await Task.Delay(250);
                 if (EndsUtc is { } ends && DateTime.UtcNow >= ends)
@@ -100,8 +105,6 @@ public class RestTimer
                 }
                 Tick?.Invoke();
             }
-            FinishedUtc = null;
-            Tick?.Invoke();
         }
         finally
         {

@@ -26,13 +26,16 @@
     <Content Remove="*.csv" />
   </ItemGroup>
 
-  <!-- Bakes the build time into the app so Settings can show "Last updated" -->
+  <!-- Bakes "when was this pushed" into the app for the Settings footer.
+       The deploy workflow passes the push time and commit (-p:LiftXPushedAt / -p:LiftXCommit);
+       local builds fall back to the build time. -->
   <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
     <PropertyGroup>
       <BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</BuildInfoFile>
-      <BuildDateUtc>$([System.DateTime]::UtcNow.ToString('o'))</BuildDateUtc>
+      <BuildDateUtc Condition="'$(LiftXPushedAt)' != ''">$(LiftXPushedAt)</BuildDateUtc>
+      <BuildDateUtc Condition="'$(LiftXPushedAt)' == ''">$([System.DateTime]::UtcNow.ToString('o'))</BuildDateUtc>
     </PropertyGroup>
-    <WriteLinesToFile File="$(BuildInfoFile)" Lines="namespace LiftX%3B public static class BuildInfo { public const string BuildDateUtc = &quot;$(BuildDateUtc)&quot;%3B }" Overwrite="true" />
+    <WriteLinesToFile File="$(BuildInfoFile)" Lines="namespace LiftX%3B public static class BuildInfo { public const string BuildDateUtc = &quot;$(BuildDateUtc)&quot;%3B public const string Commit = &quot;$(LiftXCommit)&quot;%3B }" Overwrite="true" />
     <ItemGroup>
       <Compile Include="$(BuildInfoFile)" />
     </ItemGroup>

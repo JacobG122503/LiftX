@@ -186,8 +186,6 @@ else
 }
 
 @code {
-    private static StatsSnapshot? _cache;
-
     private string _selectedMuscle = "All";
     private string _searchQuery = "";
     private string _globalMetric = "est1rm";
@@ -202,15 +200,7 @@ else
     private static readonly (string Key, string Label)[] MetricOptions =
         { ("est1rm", "Est. 1RM"), ("weight", "Max Weight"), ("volume", "Volume"), ("reps", "Total Reps") };
 
-    private StatsSnapshot Snap
-    {
-        get
-        {
-            if (_cache == null || _cache.Version != S.Version)
-                _cache = StatsEngine.Build(S.Data.Workouts, S.TypeOf, S.Version);
-            return _cache;
-        }
-    }
+    private StatsSnapshot Snap => S.Stats;
 
     private RenderFragment Stat(string icon, string value, string label, DateTime? date = null) => __builder =>
     {

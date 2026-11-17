@@ -1,3 +1,4 @@
+@* Docked to the bottom of the lift screen while resting. Controls live in the rest timer sheet (top bar timer icon). *@
 @inject RestTimer Timer
 @implements IDisposable
 
@@ -6,20 +7,9 @@
     <div class="rest-bar">
         <div class="rest-bar-fill" style="width:@((Timer.Progress * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))%"></div>
         <div class="rest-bar-content">
-            <div class="rest-bar-time">
-                <span class="rest-bar-label">Rest</span>
-                <span class="rest-bar-clock">@ExerciseInfo.FormatTime(Timer.Remaining)</span>
-            </div>
-            <button class="pill" @onclick="() => Timer.Add(-15)">−15</button>
-            <button class="pill" @onclick="() => Timer.Add(15)">+15</button>
-            <button class="pill pill-accent" @onclick="Timer.Stop">Skip</button>
+            <span class="rest-bar-label">Rest</span>
+            <span class="rest-bar-clock">@ExerciseInfo.FormatTime(Timer.Remaining)</span>
         </div>
-    </div>
-}
-else if (Timer.ShowingDone)
-{
-    <div class="rest-bar rest-bar--done">
-        <div class="rest-bar-content"><span class="rest-done-text">Rest's over. Next set! 💪</span></div>
     </div>
 }
 

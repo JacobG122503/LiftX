@@ -5,6 +5,10 @@
 {
     <span class="rest-chip">@ExerciseInfo.FormatTime(Timer.Remaining)</span>
 }
+else if (Timer.ShowingDone)
+{
+    <span class="rest-done">Done</span>
+}
 
 @code {
     protected override void OnInitialized() => Timer.Tick += OnTick;

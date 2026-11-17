@@ -19,7 +19,7 @@
             <div class="card re-row" @key="ex">
                 <ExAvatar Name="@ex.Name" />
                 <div class="re-main">
-                    <div class="row-title">@ex.Name</div>
+                    <button class="row-title re-name" @onclick="() => _statsFor = ex.Name">@ex.Name</button>
                     <div class="stepper">
                         <button class="stepper-btn" @onclick="() => ex.Sets = Math.Max(1, ex.Sets - 1)" aria-label="Fewer sets"><Icon Name="minus" Size="18" Stroke="2.6" /></button>
                         <span class="stepper-val">@ex.Sets @(ex.Sets == 1 ? "set" : "sets")</span>
@@ -45,7 +45,13 @@
     <ExercisePicker Title="Add to Routine" OnPicked="OnPicked" OnClose="() => _picker = false" />
 }
 
+@if (_statsFor != null)
+{
+    <ExerciseStatsModal Name="@_statsFor" OnClose="() => _statsFor = null" />
+}
+
 @code {
+    private string? _statsFor;
     [Parameter, EditorRequired] public Routine Routine { get; set; } = default!;
     private bool _picker;
 
