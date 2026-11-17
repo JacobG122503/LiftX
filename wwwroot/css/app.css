@@ -1145,8 +1145,32 @@ select.input {
 }
 .swatch.active { outline: 3px solid var(--accent); outline-offset: 3px; }
 .swatch--bg.active { outline-color: var(--text); }
-.swatch--custom { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); overflow: hidden; }
-.swatch--custom input[type="color"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; border: none; cursor: pointer; }
+.swatch--custom { background: var(--surface-2); }
+/* The wheel is its own circle inside the border, so nothing gets cut off at the edge */
+.swatch-wheel {
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    pointer-events: none;
+    background:
+        radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 62%),
+        conic-gradient(#ff3b30, #ff9500, #ffcc00, #34c759, #00c7be, #007aff, #5856d6, #af52de, #ff2d55, #ff3b30);
+}
+.swatch--custom input[type="color"] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    opacity: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
 .theme-preview { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 4px; }
 .theme-preview .btn-3d { pointer-events: none; }
 .theme-preview .check { width: 40px; height: 40px; }

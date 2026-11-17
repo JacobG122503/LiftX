@@ -16,6 +16,7 @@
                         aria-label="@name" @onclick="() => SetBg(hex)"></button>
             }
             <label class="swatch swatch--custom @(!Backgrounds.Any(b => Same(b.Hex, st.Background)) ? "active" : "")" title="Custom">
+                <span class="swatch-wheel"></span>
                 <input type="color" value="@st.Background" @oninput="e => S.PreviewTheme(e.Value?.ToString() ?? st.Background, st.Accent)"
                        @onchange="e => SetBg(e.Value?.ToString())" />
             </label>
@@ -29,6 +30,7 @@
                         aria-label="@name" @onclick="() => SetAccent(hex)"></button>
             }
             <label class="swatch swatch--custom @(!Accents.Any(a => Same(a.Hex, st.Accent)) ? "active" : "")" title="Custom">
+                <span class="swatch-wheel"></span>
                 <input type="color" value="@st.Accent" @oninput="e => S.PreviewTheme(st.Background, e.Value?.ToString() ?? st.Accent)"
                        @onchange="e => SetAccent(e.Value?.ToString())" />
             </label>
