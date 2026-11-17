@@ -1,0 +1,101 @@
+@inherits StateComponent
+@inject IJSRuntime JS
+
+<div class="welcome">
+    <div class="welcome-logo">
+        <svg viewBox="0 0 64 64" width="72" height="72" aria-hidden="true">
+            <rect width="64" height="64" rx="16" fill="var(--accent)" />
+            <rect x="9" y="22" width="7" height="20" rx="2.5" fill="var(--on-accent)" />
+            <rect x="17" y="26" width="5" height="12" rx="2" fill="var(--on-accent)" />
+            <rect x="22" y="30" width="20" height="4" rx="2" fill="var(--on-accent)" />
+            <rect x="42" y="26" width="5" height="12" rx="2" fill="var(--on-accent)" />
+            <rect x="48" y="22" width="7" height="20" rx="2.5" fill="var(--on-accent)" />
+        </svg>
+    </div>
+    <h1 class="welcome-title">LiftX</h1>
+    <p class="welcome-sub">Your lifts, your file. No accounts, no ads.</p>
+
+    @if (!string.IsNullOrEmpty(S.LoadError))
+    {
+        <div class="error-box">@S.LoadError</div>
+    }
+
+    <FileImport Class="upload-zone" OnLoaded="OnLoaded" OnError="e => _error = e">
+        <Icon Name="upload" Size="30" />
+        <strong>Import your file</strong>
+        <span class="upload-hint">Your LiftX save file (.json) or your Liftoff export (.csv)</span>
+    </FileImport>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="error-box">@_error</div>
+    }
+
+    <div class="welcome-help">
+        <div><strong>Coming from Liftoff?</strong> Profile → Export Workouts, save the CSV to Files, then pick it above.</div>
+        <div><strong>Already use LiftX?</strong> Pick your <code>LiftX-data.json</code> from Files.</div>
+    </div>
+
+    <button class="link-btn" @onclick="StartFresh">Start with an empty log instead</button>
+
+    @if (!string.IsNullOrEmpty(_pwaBrowser))
+    {
+        <div class="pwa-hint">
+            <div class="pwa-hint-icon">📲</div>
+            <div>
+                <div class="pwa-hint-title">Add LiftX to your Home Screen</div>
+                <div class="pwa-hint-text">
+                    @if (_pwaBrowser == "ios-safari")
+                    {
+                        <span>Tap <strong>Share ⬆️</strong> in Safari, then <strong>Add to Home Screen</strong>. Import your file <em>after</em> opening it from the Home Screen. It keeps its own storage, separate from Safari.</span>
+                    }
+                    else if (_pwaBrowser.StartsWith("ios"))
+                    {
+                        <span>Open this page in <strong>Safari</strong>, tap <strong>Share ⬆️ → Add to Home Screen</strong>, then open it from there.</span>
+                    }
+                    else
+                    {
+                        <span>Open the browser menu and tap <strong>Add to Home Screen</strong> / <strong>Install app</strong>.</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string? _error;
+    private string _pwaBrowser = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var mobile = await JS.InvokeAsync<bool>("liftx.isMobile");
+            var standalone = await JS.InvokeAsync<bool>("liftx.isStandalone");
+            if (mobile && !standalone)
+            {
+                _pwaBrowser = await JS.InvokeAsync<string>("liftx.getBrowser");
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private void OnLoaded((string Text, string Name) file)
+    {
+        _error = null;
+        try
+        {
+            var msg = S.Import(file.Text, file.Name);
+            S.Toast(msg);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void StartFresh() => S.StartFresh();
+}

@@ -1,0 +1,13 @@
+@inject RestTimer Timer
+@implements IDisposable
+
+@if (Timer.Running)
+{
+    <span class="rest-chip">@ExerciseInfo.FormatTime(Timer.Remaining)</span>
+}
+
+@code {
+    protected override void OnInitialized() => Timer.Tick += OnTick;
+    private void OnTick() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Timer.Tick -= OnTick;
+}

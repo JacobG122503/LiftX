@@ -1,0 +1,138 @@
+@inject AppState S
+@inject RestTimer Timer
+@inject Dialogs D
+@implements IDisposable
+
+@{
+    const double r = 54;
+    var circumference = 2 * Math.PI * r;
+    var progress = Timer.Running ? Timer.Progress : 1.0;
+    var offset = circumference * (1 - progress);
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+}
+
+<div class="overlay overlay--bottom" @onclick="OnClose">
+    <div class="sheet" @onclick:stopPropagation="true">
+        <div class="sheet-head">
+            <div class="sheet-title">Rest Timer</div>
+            <button class="icon-btn" @onclick="OnClose" aria-label="Close"><Icon Name="x" Size="26" /></button>
+        </div>
+
+        <div class="rest-main">
+            <div class="ring">
+                <svg viewBox="0 0 128 128" width="150" height="150">
+                    <circle cx="64" cy="64" r="@r.ToString(inv)" class="ring-bg" />
+                    <circle cx="64" cy="64" r="@r.ToString(inv)" class="ring-fg"
+                            stroke-dasharray="@circumference.ToString("0.##", inv)"
+                            stroke-dashoffset="@offset.ToString("0.##", inv)" />
+                </svg>
+                <div class="ring-text">
+                    <div class="ring-big">@ExerciseInfo.FormatTime(Timer.Running ? Timer.Remaining : _manual)</div>
+                    <div class="ring-small">@ExerciseInfo.FormatTime(Timer.Running ? Timer.Total : _manual)</div>
+                </div>
+            </div>
+            <div class="rest-controls">
+                <button class="btn-3d btn-wide" @onclick="StartStop">@(Timer.Running ? "Stop" : "Start")</button>
+                <div class="rest-adjust">
+                    <button class="btn-soft" @onclick="() => Adjust(-15)">−15</button>
+                    <button class="btn-soft" @onclick="() => Adjust(15)">+15</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="sheet-row">
+            <div class="sheet-row-main">
+                <div class="row-title">Default rest timer</div>
+                <div class="row-sub">Current default: <strong>@ExerciseInfo.FormatRest(S.Data.Settings.RestSeconds)</strong></div>
+            </div>
+            <button class="btn-3d btn-small" @onclick="EditDefault">Edit</button>
+        </div>
+        <div class="sheet-row">
+            <div class="sheet-row-main">
+                <div class="row-title">Start after checking a set</div>
+            </div>
+            <Toggle Value="S.Data.Settings.RestTimerEnabled" ValueChanged="SetEnabled" />
+        </div>
+
+        @if (Names.Count > 0)
+        {
+            <div class="sheet-list">
+                @foreach (var name in Names)
+                {
+                    var custom = S.FindDef(name)?.RestSeconds;
+                    <div class="list-row list-row--static">
+                        <ExAvatar Name="@name" Small="true" />
+                        <div class="row-main"><div class="row-title">@name</div></div>
+                        <button class="rest-edit @(custom.HasValue ? "custom" : "")" @onclick="() => EditExercise(name)">
+                            @ExerciseInfo.FormatRest(S.RestFor(name)) <Icon Name="edit" Size="16" />
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Workout Workout { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private int _manual;
+
+    private List<string> Names => Workout.Exercises.Select(e => e.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    protected override void OnInitialized()
+    {
+        _manual = S.Data.Settings.RestSeconds;
+        Timer.Tick += OnTick;
+    }
+
+    private void OnTick() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Timer.Tick -= OnTick;
+
+    private void StartStop()
+    {
+        if (Timer.Running) Timer.Stop();
+        else
+        {
+            S.UnlockAudio();
+            Timer.Start(_manual);
+        }
+    }
+
+    private void Adjust(int delta)
+    {
+        if (Timer.Running) Timer.Add(delta);
+        else _manual = Math.Max(15, _manual + delta);
+    }
+
+    private void SetEnabled(bool on)
+    {
+        S.Data.Settings.RestTimerEnabled = on;
+        S.SaveData();
+    }
+
+    private async Task EditDefault()
+    {
+        var text = await D.Prompt("Default rest timer", ExerciseInfo.FormatTime(S.Data.Settings.RestSeconds), "1:30",
+            inputMode: "numeric", message: "Type 130 for 1:30, 200 for 2:00.");
+        if (ExerciseInfo.ParseTime(text) is int secs and > 0)
+        {
+            S.Data.Settings.RestSeconds = secs;
+            _manual = secs;
+            S.SaveData();
+        }
+    }
+
+    private async Task EditExercise(string name)
+    {
+        var def = S.FindDef(name);
+        var text = await D.Prompt($"Rest timer for {name}", def?.RestSeconds is int r ? ExerciseInfo.FormatTime(r) : "",
+            ExerciseInfo.FormatTime(S.Data.Settings.RestSeconds), inputMode: "numeric",
+            message: "Type 130 for 1:30. Leave empty to use the default.");
+        if (text == null) return;
+        def ??= S.AddExercise(name, S.TypeOf(name));
+        def.RestSeconds = ExerciseInfo.ParseTime(text) is int secs and > 0 ? secs : null;
+        S.SaveData();
+    }
+}

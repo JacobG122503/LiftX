@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
+    <!-- English-only app: drops ~1MB of ICU data so it loads faster on a phone -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.9" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />
+  </ItemGroup>
+
+  <!-- Keep private data and reference material out of the build -->
+  <ItemGroup>
+    <Content Remove="LiftoffScreenshots\**" />
+    <None Remove="LiftoffScreenshots\**" />
+    <Content Remove="*.csv" />
+  </ItemGroup>
+
+  <!-- Bakes the build time into the app so Settings can show "Last updated" -->
+  <Target Name="GenerateBuildInfo" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <BuildInfoFile>$(IntermediateOutputPath)BuildInfo.g.cs</BuildInfoFile>
+      <BuildDateUtc>$([System.DateTime]::UtcNow.ToString('o'))</BuildDateUtc>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(BuildInfoFile)" Lines="namespace LiftX%3B public static class BuildInfo { public const string BuildDateUtc = &quot;$(BuildDateUtc)&quot;%3B }" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(BuildInfoFile)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

@@ -1,0 +1,45 @@
+@* A tappable area that opens the iOS Files picker. No `accept` filter on purpose:
+   iOS greys out .json files with some filters. The content is validated after picking. *@
+<label class="@Class @(_busy ? "is-busy" : "")">
+    <InputFile OnChange="OnChange" disabled="@_busy" />
+    @if (_busy)
+    {
+        <span class="spinner"></span>
+        <span>Reading file…</span>
+    }
+    else
+    {
+        @ChildContent
+    }
+</label>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+    /// <summary>Called with (text, fileName).</summary>
+    [Parameter] public EventCallback<(string Text, string Name)> OnLoaded { get; set; }
+    [Parameter] public EventCallback<string> OnError { get; set; }
+
+    private bool _busy;
+
+    private async Task OnChange(InputFileChangeEventArgs e)
+    {
+        _busy = true;
+        StateHasChanged();
+        string text;
+        try
+        {
+            await using var stream = e.File.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            text = await reader.ReadToEndAsync();
+        }
+        catch (Exception ex)
+        {
+            _busy = false;
+            await OnError.InvokeAsync("Couldn't read that file: " + ex.Message);
+            return;
+        }
+        _busy = false;
+        await OnLoaded.InvokeAsync((text, e.File.Name));
+    }
+}

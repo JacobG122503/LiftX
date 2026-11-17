@@ -1,0 +1,85 @@
+@inject Dialogs D
+@inject IJSRuntime JS
+@implements IDisposable
+
+@if (D.Current is { } r)
+{
+    <div class="overlay @(r.Kind == DialogKind.Actions ? "overlay--bottom" : "")" @onclick="Cancel">
+        @if (r.Kind == DialogKind.Actions)
+        {
+            <div class="action-sheet" @onclick:stopPropagation="true">
+                <div class="action-group">
+                    @if (!string.IsNullOrEmpty(r.Title))
+                    {
+                        <div class="action-title">@r.Title</div>
+                    }
+                    @for (int i = 0; i < r.Actions.Count; i++)
+                    {
+                        var idx = i;
+                        var a = r.Actions[i];
+                        <button class="action-item @(a.Danger ? "danger" : "")" @onclick="() => D.Resolve(idx)">@a.Label</button>
+                    }
+                </div>
+                <button class="action-item action-cancel" @onclick="Cancel">Cancel</button>
+            </div>
+        }
+        else
+        {
+            <div class="dialog" @onclick:stopPropagation="true">
+                <div class="dialog-title">@r.Title</div>
+                @if (!string.IsNullOrEmpty(r.Message))
+                {
+                    <div class="dialog-msg">@r.Message</div>
+                }
+                @if (r.Kind == DialogKind.Prompt)
+                {
+                    @if (r.Multiline)
+                    {
+                        <textarea id="dlg-input" class="input" rows="4" placeholder="@r.Placeholder"
+                                  @bind="r.Value" @bind:event="oninput"></textarea>
+                    }
+                    else
+                    {
+                        <input id="dlg-input" class="input" placeholder="@r.Placeholder" inputmode="@r.InputMode"
+                               autocomplete="off" @bind="r.Value" @bind:event="oninput" @onkeydown="OnKey" />
+                    }
+                }
+                <div class="dialog-btns">
+                    <button class="btn btn-ghost" @onclick="Cancel">@r.Cancel</button>
+                    <button class="btn @(r.Danger ? "btn-danger" : "btn-accent")" @onclick="Ok">@r.Ok</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private DialogRequest? _focused;
+
+    protected override void OnInitialized() => D.Changed += OnChanged;
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => D.Changed -= OnChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (D.Current is { Kind: DialogKind.Prompt } r && r != _focused)
+        {
+            _focused = r;
+            try { await JS.InvokeVoidAsync("liftx.focus", "dlg-input"); } catch { }
+        }
+    }
+
+    private void Cancel() => D.Resolve(null);
+
+    private void Ok()
+    {
+        var r = D.Current;
+        if (r == null) return;
+        D.Resolve(r.Kind == DialogKind.Prompt ? r.Value : true);
+    }
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Ok();
+    }
+}

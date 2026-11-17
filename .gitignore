@@ -1,0 +1,16 @@
+# Build output
+bin/
+obj/
+publish/
+
+# Your personal workout data: never commit it (the repo is public for GitHub Pages)
+*.csv
+LiftX-data*.json
+LiftoffScreenshots/
+
+# Editor / OS
+.vs/
+.vscode/
+.idea/
+*.user
+.DS_Store

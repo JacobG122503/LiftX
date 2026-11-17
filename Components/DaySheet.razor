@@ -1,0 +1,94 @@
+@inject AppState S
+@inject Dialogs D
+
+@{
+    var workouts = S.Data.Workouts.Where(w => DateOnly.FromDateTime(w.Date) == Day).OrderBy(w => w.Date).ToList();
+}
+
+<div class="overlay overlay--bottom" @onclick="OnClose">
+    <div class="sheet sheet--tall" @onclick:stopPropagation="true">
+        <div class="sheet-head">
+            <div class="sheet-title">@Day.ToString("dddd, MMM d, yyyy")</div>
+            <button class="icon-btn" @onclick="OnClose" aria-label="Close"><Icon Name="x" Size="26" /></button>
+        </div>
+
+        @if (workouts.Count == 0)
+        {
+            <div class="empty-state">No lift logged this day.</div>
+        }
+
+        @foreach (var w in workouts)
+        {
+            var wk = w;
+            var sets = w.Exercises.Sum(e => e.Sets.Count);
+            var volume = w.Exercises.Where(e => S.TypeOf(e.Name) == ExerciseType.Weight)
+                .Sum(e => e.Sets.Sum(s => (s.Weight ?? 0) * (s.Reps ?? 0)));
+            <div class="day-workout">
+                <div class="dw-head">
+                    <div class="dw-name">@(w.Name ?? "Lift")</div>
+                    <div class="dw-sub">
+                        @w.Date.ToString("h:mm tt") · @sets sets
+                        @if (volume > 0) { <span> · @volume.ToString("N0") lbs</span> }
+                        @if (w.DurationSeconds > 0) { <span> · @(w.DurationSeconds / 60) min</span> }
+                    </div>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(w.Notes))
+                {
+                    <div class="dw-notes">@w.Notes</div>
+                }
+                @foreach (var e in w.Exercises)
+                {
+                    var type = S.TypeOf(e.Name);
+                    <div class="dw-ex">
+                        <div class="dw-ex-name">@e.Name</div>
+                        <div class="dw-sets">@string.Join(",  ", e.Sets.Select(s => ExerciseInfo.FormatSet(s, type)))</div>
+                    </div>
+                }
+                <div class="dw-actions">
+                    <button class="btn-soft btn-small" @onclick="() => Edit(wk)"><Icon Name="edit" Size="16" /> Edit</button>
+                    <button class="btn-soft btn-small" @onclick="() => SaveAsRoutine(wk)"><Icon Name="list" Size="16" /> Save as routine</button>
+                    <button class="btn-ghost btn-small danger" @onclick="() => Delete(wk)"><Icon Name="trash" Size="16" /></button>
+                </div>
+            </div>
+        }
+
+        <button class="btn-soft btn-wide" @onclick="LogNew"><Icon Name="plus" Size="18" Stroke="2.6" /> Log a lift for this day</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public DateOnly Day { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private async Task Edit(Workout w)
+    {
+        await OnClose.InvokeAsync();
+        S.BeginEdit(w);
+        S.ScrollTop();
+    }
+
+    private async Task LogNew()
+    {
+        await OnClose.InvokeAsync();
+        S.BeginNewPast(Day);
+        S.ScrollTop();
+    }
+
+    private async Task SaveAsRoutine(Workout w)
+    {
+        var name = await D.Prompt("Save as routine", w.Name, "Routine name (e.g. Push Day)", ok: "Create",
+            message: $"Creates a routine with these {w.Exercises.Count} exercises and their set counts.");
+        if (string.IsNullOrWhiteSpace(name)) return;
+        S.RoutineFromWorkout(w, name);
+        S.Toast($"Routine “{name.Trim()}” created");
+    }
+
+    private async Task Delete(Workout w)
+    {
+        if (await D.Confirm("Delete this lift?", $"{w.Name ?? "Lift"} on {w.Date:MMM d, yyyy} will be removed for good.", "Delete", danger: true))
+        {
+            S.DeleteWorkout(w);
+            S.Toast("Lift deleted");
+        }
+    }
+}

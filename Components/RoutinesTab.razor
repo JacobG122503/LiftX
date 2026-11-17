@@ -1,0 +1,132 @@
+@inherits StateComponent
+@inject Dialogs D
+
+<button class="start-empty" @onclick="StartEmpty">
+    <span class="start-empty-icon"><Icon Name="@(S.Active != null ? "play" : "plus")" Stroke="2.8" /></span>
+    <span>
+        <span class="start-empty-title">@(S.Active != null ? "Resume your lift" : "Start an empty lift")</span>
+        <span class="start-empty-sub">@(S.Active != null ? "You have a lift in progress" : "Add exercises as you go")</span>
+    </span>
+</button>
+
+<div class="section-head">
+    <button class="section-toggle" @onclick="() => _collapsed = !_collapsed">
+        <Icon Name="@(_collapsed ? "chevron-right" : "chevron-down")" Stroke="2.6" />
+        <span class="section-title">My Routines</span>
+        <span class="section-count">@S.Data.Routines.Count</span>
+    </button>
+    <button class="icon-btn" @onclick="() => S.BeginEditRoutine(null)" aria-label="New routine"><Icon Name="plus" Size="26" /></button>
+</div>
+
+@if (!_collapsed)
+{
+    @if (S.Data.Routines.Count == 0)
+    {
+        <div class="card empty-card">
+            <div class="empty-emoji">📋</div>
+            <div><strong>No routines yet.</strong></div>
+            <div class="muted">Tap <strong>+</strong> to build one, or open a past lift in <strong>Calendar</strong> and tap <em>Save as routine</em>.</div>
+            <button class="btn-3d" @onclick="() => S.BeginEditRoutine(null)">New Routine</button>
+        </div>
+    }
+
+    @foreach (var r in S.Data.Routines)
+    {
+        var routine = r;
+        var expanded = _expanded.Contains(r.Id);
+        var shown = expanded ? r.Exercises : r.Exercises.Take(3).ToList();
+        var more = r.Exercises.Count - shown.Count;
+        <div class="card routine-card">
+            <div class="routine-head">
+                <button class="routine-head-main" @onclick="() => ToggleExpand(routine)">
+                    <span class="routine-name">@r.Name</span>
+                    <span class="routine-sub">@r.Exercises.Sum(e => e.Sets) sets</span>
+                </button>
+                <button class="icon-btn" @onclick="() => Menu(routine)" aria-label="Routine options"><Icon Name="more" /></button>
+            </div>
+            @foreach (var ex in shown)
+            {
+                <div class="routine-ex">
+                    <ExAvatar Name="@ex.Name" />
+                    <div class="row-main">
+                        <div class="row-title">@ex.Name</div>
+                        <div class="row-sub">@ex.Sets @(ex.Sets == 1 ? "set" : "sets")</div>
+                    </div>
+                </div>
+            }
+            <div class="routine-foot">
+                @if (more > 0)
+                {
+                    <button class="more-link" @onclick="() => ToggleExpand(routine)">and @more more...</button>
+                }
+                else if (expanded && r.Exercises.Count > 3)
+                {
+                    <button class="more-link" @onclick="() => ToggleExpand(routine)">show less</button>
+                }
+                else
+                {
+                    <span></span>
+                }
+                <button class="btn-3d btn-small" @onclick="() => Start(routine)">START</button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool _collapsed;
+    private readonly HashSet<string> _expanded = new();
+
+    private void ToggleExpand(Routine r)
+    {
+        if (!_expanded.Add(r.Id)) _expanded.Remove(r.Id);
+    }
+
+    private void StartEmpty()
+    {
+        if (S.Active != null) S.OpenWorkout();
+        else S.StartWorkout(null);
+        S.ScrollTop();
+    }
+
+    private async Task Start(Routine r)
+    {
+        if (r.Exercises.Count == 0)
+        {
+            S.Toast("This routine has no exercises yet");
+            return;
+        }
+        if (S.Active != null)
+        {
+            var choice = await D.Choose("You already have a lift in progress",
+                new ActionItem("Resume current lift"),
+                new ActionItem($"Discard it and start {r.Name}", Danger: true));
+            if (choice == 0) { S.OpenWorkout(); return; }
+            if (choice != 1) return;
+        }
+        S.StartWorkout(r);
+        S.ScrollTop();
+    }
+
+    private async Task Menu(Routine r)
+    {
+        var i = S.Data.Routines.IndexOf(r);
+        var choice = await D.Choose(r.Name,
+            new ActionItem("Edit"),
+            new ActionItem("Duplicate"),
+            new ActionItem("Move up"),
+            new ActionItem("Move down"),
+            new ActionItem("Delete", Danger: true));
+        switch (choice)
+        {
+            case 0: S.BeginEditRoutine(r); break;
+            case 1: S.DuplicateRoutine(r); break;
+            case 2: S.MoveRoutine(r, -1); break;
+            case 3: S.MoveRoutine(r, 1); break;
+            case 4:
+                if (await D.Confirm($"Delete “{r.Name}”?", "Your past lifts stay in your history.", "Delete", danger: true))
+                    S.DeleteRoutine(r);
+                break;
+        }
+    }
+}

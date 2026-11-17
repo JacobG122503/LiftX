@@ -1,0 +1,6 @@
+<div class="ex-avatar @(Small ? "ex-avatar--sm" : "")">@ExerciseInfo.Initials(Name)</div>
+
+@code {
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public bool Small { get; set; }
+}

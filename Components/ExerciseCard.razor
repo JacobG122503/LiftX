@@ -1,0 +1,331 @@
+@* Ported from LiftoffVisualizer. Cardio / timed / bodyweight exercises chart the closest
+   useful metric (time, distance, reps) instead of a flat line of zeros. *@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@{
+    var metric = EffMetric;
+    var trend = TrendDir;
+}
+
+<div class="exercise-card @(!_filteredData.Any() && _selectedDays != 0 ? "card--no-data" : "")" @onclick="OpenFullscreen">
+    <div class="card-header">
+        <div class="card-title-area">
+            <div class="card-title" title="@ExerciseName">@ExerciseName</div>
+            <div class="card-muscle-tag">@Tag</div>
+        </div>
+        @TrendIcon(trend, false)
+    </div>
+
+    <div class="time-range-btns" @onclick:stopPropagation="true">
+        @foreach (var range in TimeRanges)
+        {
+            var days = range.Days;
+            <button class="time-btn @(days == _selectedDays ? "active" : "")" @onclick="() => SetTimeRange(days)">@range.Label</button>
+        }
+    </div>
+
+    @if (Type is ExerciseType.Weight)
+    {
+        <div class="metric-selector" @onclick:stopPropagation="true">
+            @foreach (var opt in MetricOptions)
+            {
+                var key = opt.Key;
+                <button class="metric-btn @(_selectedMetric == key ? "active" : "")" @onclick="() => SetMetric(key)">@opt.Label</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="metric-selector metric-selector--static"><span class="metric-btn active">@StatsEngine.MetricLabel(metric, Type)</span></div>
+    }
+
+    <div class="chart-container">
+        <canvas id="@_canvasId"></canvas>
+        @if (!_filteredData.Any() && _selectedDays != 0)
+        {
+            <div class="chart-no-data"><Icon Name="info" /><span>No sessions in this period</span></div>
+        }
+    </div>
+
+    @if (_filteredData.Any())
+    {
+        @CardStats()
+    }
+</div>
+
+@if (_fullscreen)
+{
+    <div class="fs-overlay" @onclick="CloseFullscreen">
+        <div class="fs-modal" @onclick:stopPropagation="true">
+            <div class="fs-header">
+                <div>
+                    <div class="fs-title">@ExerciseName</div>
+                    <div class="card-muscle-tag">@Tag</div>
+                </div>
+                @TrendIcon(trend, true)
+                <button class="icon-btn" @onclick="CloseFullscreen" title="Close"><Icon Name="x" /></button>
+            </div>
+            <div class="fs-controls">
+                <div class="time-range-btns">
+                    @foreach (var range in TimeRanges)
+                    {
+                        var days = range.Days;
+                        <button class="time-btn @(days == _selectedDays ? "active" : "")" @onclick="() => SetTimeRangeFullscreen(days)">@range.Label</button>
+                    }
+                </div>
+                @if (Type is ExerciseType.Weight)
+                {
+                    <div class="metric-selector">
+                        @foreach (var opt in MetricOptions)
+                        {
+                            var key = opt.Key;
+                            <button class="metric-btn @(_selectedMetric == key ? "active" : "")" @onclick="() => SetMetricFullscreen(key)">@opt.Label</button>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="fs-chart-container">
+                <canvas id="@_fullscreenCanvasId"></canvas>
+            </div>
+            @if (_filteredData.Any())
+            {
+                <div class="fs-stats">@CardStats()</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ExerciseName { get; set; } = "";
+    [Parameter] public ExerciseType Type { get; set; }
+    [Parameter] public List<ExerciseSummary> AllData { get; set; } = new();
+    [Parameter] public string? MetricOverride { get; set; }
+    [Parameter] public int? DaysOverride { get; set; }
+
+    private string _canvasId = "";
+    private string _fullscreenCanvasId = "";
+    private int _selectedDays;
+    private string _selectedMetric = "est1rm";
+    private List<ExerciseSummary> _filteredData = new();
+    private bool _chartRendered;
+    private bool _fullscreen;
+    private string? _prevMetricOverride;
+    private int? _prevDaysOverride;
+    private (List<ExerciseSummary>, string, int) _renderedKey;
+
+    private static readonly (string Label, int Days)[] TimeRanges =
+        { ("15D", 15), ("30D", 30), ("90D", 90), ("6M", 180), ("1Y", 365), ("All", 0) };
+
+    private static readonly (string Key, string Label)[] MetricOptions =
+        { ("est1rm", "Est. 1RM"), ("weight", "Max Weight"), ("volume", "Volume"), ("reps", "Total Reps") };
+
+    private string EffMetric => StatsEngine.EffectiveMetric(Type, _selectedMetric, _filteredData);
+    private string TrendDir => _filteredData.Count < 2 ? "neutral" : StatsEngine.TrendDirection(StatsEngine.Values(_filteredData, EffMetric));
+    private string Tag => ExerciseInfo.UsesWeight(Type) || Type == ExerciseType.Reps ? ExerciseInfo.MuscleGroup(ExerciseName) : ExerciseInfo.ShortTypeLabel(Type);
+
+    protected override void OnInitialized()
+    {
+        _canvasId = $"chart-{Guid.NewGuid():N}";
+        _fullscreenCanvasId = $"chart-fs-{Guid.NewGuid():N}";
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (MetricOverride != null && MetricOverride != _prevMetricOverride)
+        {
+            _selectedMetric = MetricOverride;
+            _prevMetricOverride = MetricOverride;
+        }
+        if (DaysOverride.HasValue && DaysOverride != _prevDaysOverride)
+        {
+            _selectedDays = DaysOverride.Value;
+            _prevDaysOverride = DaysOverride;
+        }
+        FilterData();
+        // Only redraw when something that affects the chart actually changed
+        if (_chartRendered && _renderedKey != (AllData, _selectedMetric, _selectedDays))
+            await RenderChart();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || !_chartRendered)
+        {
+            await RenderChart();
+            _chartRendered = true;
+        }
+    }
+
+    private void FilterData()
+    {
+        if (_selectedDays == 0) _filteredData = AllData;
+        else
+        {
+            var cutoff = DateTime.Now.AddDays(-_selectedDays);
+            _filteredData = AllData.Where(d => d.Date >= cutoff).ToList();
+        }
+    }
+
+    private async Task SetTimeRange(int days)
+    {
+        _selectedDays = days;
+        FilterData();
+        await RenderChart();
+    }
+
+    private async Task SetMetric(string metric)
+    {
+        _selectedMetric = metric;
+        await RenderChart();
+    }
+
+    private async Task SetTimeRangeFullscreen(int days)
+    {
+        await SetTimeRange(days);
+        await RenderChartOnCanvas(_fullscreenCanvasId);
+    }
+
+    private async Task SetMetricFullscreen(string metric)
+    {
+        await SetMetric(metric);
+        await RenderChartOnCanvas(_fullscreenCanvasId);
+    }
+
+    private async Task RenderChart()
+    {
+        _renderedKey = (AllData, _selectedMetric, _selectedDays);
+        if (!_filteredData.Any())
+        {
+            try { await JS.InvokeVoidAsync("chartInterop.destroyChart", _canvasId); } catch { }
+            return;
+        }
+        await RenderChartOnCanvas(_canvasId);
+    }
+
+    private async Task OpenFullscreen()
+    {
+        _fullscreen = true;
+        StateHasChanged();
+        await Task.Delay(50);
+        await RenderChartOnCanvas(_fullscreenCanvasId);
+    }
+
+    private async Task CloseFullscreen()
+    {
+        _fullscreen = false;
+        try { await JS.InvokeVoidAsync("chartInterop.destroyChart", _fullscreenCanvasId); } catch { }
+    }
+
+    private async Task RenderChartOnCanvas(string canvasId)
+    {
+        if (!_filteredData.Any()) return;
+        var metric = EffMetric;
+        var labels = _filteredData.Select(d => d.Date.ToString("yyyy-MM-dd")).ToArray();
+        var data = StatsEngine.Values(_filteredData, metric);
+        var metricLabel = StatsEngine.MetricLabel(metric, Type);
+
+        string[]? tooltipExtras = metric switch
+        {
+            "est1rm" => _filteredData.Select(d => d.BestSet1RMWeight > 0 ? $"{d.BestSet1RMWeight:N0} lbs × {d.BestSet1RMReps} reps" : "").ToArray(),
+            "assist" => _filteredData.Select(d => $"{ExerciseInfo.Num(d.MinWeight)} lbs of help").ToArray(),
+            _ => null
+        };
+
+        var datasets = new List<object>
+        {
+            new { label = metricLabel, data, pointBorderColor = "#fff", fill = true, tension = 0.3 }
+        };
+        if (tooltipExtras != null)
+        {
+            datasets.Add(new
+            {
+                label = "", data, tooltipExtras, borderColor = "transparent", backgroundColor = "transparent",
+                borderWidth = 0, pointRadius = 0, pointHoverRadius = 0, fill = false, tension = 0.3
+            });
+        }
+        if (data.Length >= 2)
+        {
+            datasets.Add(new
+            {
+                label = "Trend", data = StatsEngine.TrendLine(data), borderColor = "rgba(150,150,150,0.6)",
+                backgroundColor = "transparent", pointBackgroundColor = "transparent", pointBorderColor = "transparent",
+                fill = false, tension = 0.0, borderDash = new[] { 6, 4 }, pointRadius = 0, pointHoverRadius = 0
+            });
+        }
+
+        var config = new { type = "line", labels, datasets, beginAtZero = false };
+        try { await JS.InvokeVoidAsync("chartInterop.createChart", canvasId, config); } catch { }
+    }
+
+    private RenderFragment TrendIcon(string trend, bool large) => __builder =>
+    {
+        var w = large ? 14 : 12;
+        <div class="trend-indicator @(large ? "trend-indicator--lg" : "")" title="@(trend == "up" ? "Trending up" : trend == "down" ? "Trending down" : "No change")">
+            @if (trend == "up")
+            {
+                <svg width="@w" height="@(w - 1)" viewBox="0 0 12 11"><polygon points="6,0 12,11 0,11" fill="#4CAF50" /></svg>
+            }
+            else if (trend == "down")
+            {
+                <svg width="@w" height="@(w - 1)" viewBox="0 0 12 11"><polygon points="0,0 12,0 6,11" fill="#f44336" /></svg>
+            }
+            else
+            {
+                <svg width="@(w + 2)" height="6" viewBox="0 0 14 6"><line x1="1" y1="3" x2="13" y2="3" stroke="#9E9E9E" stroke-width="2" stroke-linecap="round" /></svg>
+            }
+        </div>
+    };
+
+    private RenderFragment CardStats() => __builder =>
+    {
+        var d = _filteredData;
+        var best = d.MaxBy(x => x.MaxEstimated1RM);
+        <div class="card-stats">
+            @switch (Type)
+            {
+                case ExerciseType.Weight:
+                    @CardStat($"{ExerciseInfo.Num(d.Max(x => x.MaxWeight))} lbs", "Best Weight")
+                    @CardStat($"{(best?.MaxEstimated1RM ?? 0):N0} lbs", "Est. 1RM")
+                    @CardStat(best != null && best.BestSet1RMWeight > 0 && best.BestSet1RMReps > 0 ? $"{ExerciseInfo.Num(best.BestSet1RMWeight)} × {best.BestSet1RMReps}" : "-", "Best Set")
+                    break;
+                case ExerciseType.Assisted:
+                    var leastHelp = d.Where(x => x.MinWeight > 0).Select(x => x.MinWeight).DefaultIfEmpty(0).Min();
+                    @CardStat($"-{ExerciseInfo.Num(leastHelp)} lbs", "Least Help")
+                    @CardStat(d.Max(x => x.MaxReps).ToString(), "Best Reps")
+                    @CardStat(d.Sum(x => x.TotalReps).ToString("N0"), "Total Reps")
+                    break;
+                case ExerciseType.Reps:
+                    @CardStat(d.Max(x => x.MaxReps).ToString(), "Best Set")
+                    @CardStat(d.Max(x => x.TotalReps).ToString(), "Best Day")
+                    @CardStat(d.Sum(x => x.TotalReps).ToString("N0"), "Total Reps")
+                    break;
+                case ExerciseType.Duration:
+                    @CardStat(ExerciseInfo.FormatTime(d.Max(x => x.MaxSeconds)), "Best Hold")
+                    @CardStat(ExerciseInfo.FormatTime(d.Sum(x => x.TotalSeconds)), "Total Time")
+                    break;
+                default:
+                    var dist = d.Sum(x => x.TotalDistance);
+                    @CardStat(ExerciseInfo.FormatTime(d.Max(x => x.TotalSeconds)), "Longest")
+                    @CardStat(ExerciseInfo.FormatTime(d.Sum(x => x.TotalSeconds)), "Total Time")
+                    @CardStat(dist <= 0 ? "-" : Type == ExerciseType.Stairs ? $"{ExerciseInfo.Num(dist)} fl" : $"{dist:0.#} mi", Type == ExerciseType.Stairs ? "Floors" : "Miles")
+                    break;
+            }
+            @CardStat(d.Count.ToString(), "Sessions")
+        </div>
+    };
+
+    private static RenderFragment CardStat(string value, string label) => __builder =>
+    {
+        <div class="card-stat">
+            <div class="card-stat-value">@value</div>
+            <div class="card-stat-label">@label</div>
+        </div>
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("chartInterop.destroyChart", _canvasId); } catch { }
+        try { await JS.InvokeVoidAsync("chartInterop.destroyChart", _fullscreenCanvasId); } catch { }
+    }
+}

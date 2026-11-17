@@ -1,0 +1,202 @@
+@inherits StateComponent
+@inject Dialogs D
+
+@{
+    var st = S.Data.Settings;
+}
+
+<section class="settings-section">
+    <div class="settings-title">Theme</div>
+    <div class="card settings-card">
+        <div class="setting-label">Main color</div>
+        <div class="swatches">
+            @foreach (var (name, hex) in Backgrounds)
+            {
+                <button class="swatch swatch--bg @(Same(st.Background, hex) ? "active" : "")" style="background:@hex" title="@name"
+                        aria-label="@name" @onclick="() => SetBg(hex)"></button>
+            }
+            <label class="swatch swatch--custom @(!Backgrounds.Any(b => Same(b.Hex, st.Background)) ? "active" : "")" title="Custom">
+                <input type="color" value="@st.Background" @oninput="e => S.PreviewTheme(e.Value?.ToString() ?? st.Background, st.Accent)"
+                       @onchange="e => SetBg(e.Value?.ToString())" />
+            </label>
+        </div>
+
+        <div class="setting-label">Accent color</div>
+        <div class="swatches">
+            @foreach (var (name, hex) in Accents)
+            {
+                <button class="swatch @(Same(st.Accent, hex) ? "active" : "")" style="background:@hex" title="@name"
+                        aria-label="@name" @onclick="() => SetAccent(hex)"></button>
+            }
+            <label class="swatch swatch--custom @(!Accents.Any(a => Same(a.Hex, st.Accent)) ? "active" : "")" title="Custom">
+                <input type="color" value="@st.Accent" @oninput="e => S.PreviewTheme(st.Background, e.Value?.ToString() ?? st.Accent)"
+                       @onchange="e => SetAccent(e.Value?.ToString())" />
+            </label>
+        </div>
+
+        <div class="theme-preview">
+            <button class="btn-3d btn-small" tabindex="-1">START</button>
+            <span class="check on"><Icon Name="check" Size="20" Stroke="3" /></span>
+            <span class="muted">Preview</span>
+            @if (!Same(st.Background, Defaults.Background) || !Same(st.Accent, Defaults.Accent))
+            {
+                <button class="link-btn" @onclick="ResetTheme">Reset to default</button>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="settings-section">
+    <div class="settings-title">Rest Timer</div>
+    <div class="card settings-card">
+        <div class="setting-row">
+            <div class="row-main"><div class="row-title">Default rest</div><div class="row-sub">Exercises can override this from their ⋮ menu</div></div>
+            <div class="stepper">
+                <button class="stepper-btn" @onclick="() => AdjustRest(-15)" aria-label="Less rest"><Icon Name="minus" Size="18" Stroke="2.6" /></button>
+                <span class="stepper-val">@ExerciseInfo.FormatRest(st.RestSeconds)</span>
+                <button class="stepper-btn" @onclick="() => AdjustRest(15)" aria-label="More rest"><Icon Name="plus" Size="18" Stroke="2.6" /></button>
+            </div>
+        </div>
+        <div class="setting-row">
+            <div class="row-main"><div class="row-title">Start after checking a set</div></div>
+            <Toggle Value="st.RestTimerEnabled" ValueChanged="v => { st.RestTimerEnabled = v; S.SaveSettings(); }" />
+        </div>
+        <div class="setting-row">
+            <div class="row-main"><div class="row-title">Beep when rest is over</div><div class="row-sub">Only while LiftX is open. iOS mutes it when the silent switch is on.</div></div>
+            <Toggle Value="st.TimerSound" ValueChanged="v => { st.TimerSound = v; S.SaveSettings(); }" />
+        </div>
+        <div class="setting-row">
+            <div class="row-main"><div class="row-title">Keep screen awake during a lift</div><div class="row-sub">So the rest timer stays visible</div></div>
+            <Toggle Value="st.KeepAwake" ValueChanged="v => { st.KeepAwake = v; S.SaveSettings(); }" />
+        </div>
+    </div>
+</section>
+
+<section class="settings-section">
+    <div class="settings-title">Save File</div>
+    <div class="card settings-card">
+        <div class="save-status @(S.Meta.Dirty ? "dirty" : "")">
+            @if (S.Meta.Dirty)
+            {
+                <span class="dirty-dot static"></span>
+                <span>You have changes that aren't in your Files copy yet.</span>
+            }
+            else if (S.Meta.LastExportUtc is { } t)
+            {
+                <Icon Name="check" Size="18" Stroke="3" />
+                <span>Saved to Files @t.ToLocalTime().ToString("MMM d, h:mm tt")</span>
+            }
+            else
+            {
+                <Icon Name="check" Size="18" Stroke="3" />
+                <span>Up to date with the file you loaded</span>
+            }
+        </div>
+
+        <button class="btn-3d btn-wide" @onclick="Save"><Icon Name="save" Stroke="2.6" /> Save to Files</button>
+        <div class="row-sub help-text">
+            Opens the share sheet. Pick <strong>Save to Files</strong>, choose the same folder as last time and tap <strong>Replace</strong>.
+            Everything is also kept on this phone automatically, so this is your backup and your way to move data.
+        </div>
+
+        <label class="field-label" for="file-name">File name</label>
+        <input id="file-name" class="input" @bind="st.FileName" @bind:after="FileNameChanged" autocomplete="off" />
+
+        <FileImport Class="btn-soft btn-wide" OnLoaded="OnImport" OnError="e => S.Toast(e)">
+            <Icon Name="upload" Size="20" /> Load a different file
+        </FileImport>
+        <div class="row-sub help-text">LiftX file (.json) or Liftoff export (.csv). This replaces what's on this phone.</div>
+    </div>
+</section>
+
+<section class="settings-section">
+    <div class="settings-title">About</div>
+    <div class="card settings-card about">
+        <div><strong>LiftX</strong> · last updated @BuildDate</div>
+        <div class="muted">
+            @S.Data.Workouts.Count workouts · @S.Library.Count() exercises · @S.Data.Routines.Count routines
+        </div>
+        <button class="btn-ghost btn-wide danger" @onclick="Erase"><Icon Name="trash" Size="18" /> Erase all data on this phone</button>
+    </div>
+</section>
+
+@code {
+    private static readonly (string Name, string Hex)[] Backgrounds =
+    {
+        ("Black", "#000000"), ("Charcoal", "#121212"), ("Midnight", "#0B1220"),
+        ("Wine", "#1A0507"), ("Forest", "#06140D"), ("Light", "#F4F4F6"),
+    };
+
+    private static readonly (string Name, string Hex)[] Accents =
+    {
+        ("Medium Sea Green", "#3CB371"), ("Red", "#E5463B"), ("Orange", "#F27A1A"), ("Gold", "#F2B705"),
+        ("Cyan", "#14B8D4"), ("Blue", "#3B82F6"), ("Purple", "#8B5CF6"), ("Pink", "#EC4899"),
+    };
+
+    private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    private string BuildDate
+    {
+        get
+        {
+            try { return DateTime.Parse(BuildInfo.BuildDateUtc, null, System.Globalization.DateTimeStyles.RoundtripKind).ToLocalTime().ToString("MMM d, yyyy h:mm tt"); }
+            catch { return "?"; }
+        }
+    }
+
+    private void SetBg(string? hex)
+    {
+        if (string.IsNullOrEmpty(hex)) return;
+        S.Data.Settings.Background = hex;
+        S.SaveSettings();
+    }
+
+    private void SetAccent(string? hex)
+    {
+        if (string.IsNullOrEmpty(hex)) return;
+        S.Data.Settings.Accent = hex;
+        S.SaveSettings();
+    }
+
+    private void ResetTheme()
+    {
+        S.Data.Settings.Background = Defaults.Background;
+        S.Data.Settings.Accent = Defaults.Accent;
+        S.SaveSettings();
+    }
+
+    private void AdjustRest(int delta)
+    {
+        S.Data.Settings.RestSeconds = Math.Clamp(S.Data.Settings.RestSeconds + delta, 15, 600);
+        S.SaveSettings();
+    }
+
+    private void FileNameChanged()
+    {
+        var n = (S.Data.Settings.FileName ?? "").Trim();
+        if (n.Length == 0) n = Defaults.FileName;
+        if (!n.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) n += ".json";
+        S.Data.Settings.FileName = n;
+        S.SaveSettings();
+    }
+
+    private Task Save() => S.ExportAsync();
+
+    private async Task OnImport((string Text, string Name) file)
+    {
+        if (!await D.Confirm($"Load {file.Name}?", "This replaces the lifts, routines and exercises on this phone with the ones in that file.",
+                "Replace", danger: true))
+            return;
+        try { S.Toast(S.Import(file.Text, file.Name)); }
+        catch (Exception ex) { await D.Confirm("Couldn't load that file", ex.Message, "OK", cancel: "Close"); }
+    }
+
+    private async Task Erase()
+    {
+        if (!await D.Confirm("Erase everything on this phone?",
+                S.Meta.Dirty ? "⚠️ You have changes that aren't saved to Files. They'll be gone for good." : "Your file in Files is not touched.",
+                "Erase", danger: true))
+            return;
+        S.EraseEverything();
+    }
+}

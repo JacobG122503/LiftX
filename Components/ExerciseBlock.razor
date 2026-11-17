@@ -1,0 +1,208 @@
+@inject AppState S
+@inject RestTimer Timer
+@inject Dialogs D
+
+@{
+    var type = S.TypeOf(Exercise.Name);
+    var cols = ExerciseInfo.Columns(type);
+    var prev = S.PreviousSets(Exercise.Name, Live ? DateTime.MaxValue : Workout.Date, Workout.Id);
+    var def = S.FindDef(Exercise.Name);
+    var gridClass = Live ? "" : "no-check";
+}
+
+<div class="ex-card">
+    <div class="ex-head">
+        <ExAvatar Name="@Exercise.Name" />
+        <button class="ex-name" @onclick="() => _collapsed = !_collapsed">@Exercise.Name</button>
+        <button class="icon-btn accent" @onclick="() => _collapsed = !_collapsed" aria-label="Collapse">
+            <Icon Name="@(_collapsed ? "chevron-down" : "chevron-up")" Stroke="2.6" />
+        </button>
+        <button class="icon-btn" @onclick="OnMenu" aria-label="Exercise options"><Icon Name="more" /></button>
+    </div>
+
+    @if (!_collapsed)
+    {
+        @if (!string.IsNullOrWhiteSpace(def?.Notes))
+        {
+            <button class="ex-note" @onclick="OnMenu"><Icon Name="note" Size="16" /> <span>@def!.Notes</span></button>
+        }
+
+        <div class="set-grid set-head @gridClass">
+            <div>SET</div>
+            <div>PREV</div>
+            @if (cols.First != null)
+            {
+                <div>@cols.First</div>
+                <div>@cols.Second</div>
+            }
+            else
+            {
+                <div class="span2">@cols.Second</div>
+            }
+            @if (Live)
+            {
+                <div></div>
+            }
+        </div>
+
+        @for (int i = 0; i < Exercise.Sets.Count; i++)
+        {
+            var idx = i;
+            var set = Exercise.Sets[i];
+            var ph = Placeholder(idx, prev);
+            <div class="set-grid set-row @gridClass @(set.Done ? "done" : "")" @key="set">
+                <button class="set-num" @onclick="() => SetMenu(idx)">@(idx + 1)</button>
+                <button class="set-prev" @onclick="() => CopyPrev(idx, prev)">@PrevText(idx, prev, type)</button>
+
+                @switch (type)
+                {
+                    case ExerciseType.Weight:
+                    case ExerciseType.Assisted:
+                        <input class="set-input" type="number" inputmode="decimal" step="any" min="0"
+                               placeholder="@ExerciseInfo.Num(ph?.Weight)" @bind="set.Weight" @bind:after="Changed" />
+                        <input class="set-input" type="number" inputmode="numeric" pattern="[0-9]*" min="0"
+                               placeholder="@ph?.Reps" @bind="set.Reps" @bind:after="Changed" />
+                        break;
+                    case ExerciseType.Reps:
+                        <input class="set-input span2" type="number" inputmode="numeric" pattern="[0-9]*" min="0"
+                               placeholder="@ph?.Reps" @bind="set.Reps" @bind:after="Changed" />
+                        break;
+                    case ExerciseType.Duration:
+                        <input class="set-input set-input--time span2" type="text" inputmode="numeric" autocomplete="off"
+                               placeholder="@(ph?.Seconds != null ? ExerciseInfo.FormatTime(ph.Seconds) : "m:ss")"
+                               value="@ExerciseInfo.FormatTime(set.Seconds)" @onchange="e => SetTime(set, e)" />
+                        break;
+                    case ExerciseType.Cardio:
+                    case ExerciseType.Stairs:
+                        <input class="set-input" type="number" inputmode="decimal" step="any" min="0"
+                               placeholder="@ExerciseInfo.Num(ph?.Distance)" @bind="set.Distance" @bind:after="Changed" />
+                        <input class="set-input set-input--time" type="text" inputmode="numeric" autocomplete="off"
+                               placeholder="@(ph?.Seconds != null ? ExerciseInfo.FormatTime(ph.Seconds) : "m:ss")"
+                               value="@ExerciseInfo.FormatTime(set.Seconds)" @onchange="e => SetTime(set, e)" />
+                        break;
+                }
+
+                @if (Live)
+                {
+                    <button class="check @(set.Done ? "on" : "")" @onclick="() => Toggle(idx, prev, type)" aria-label="Complete set">
+                        <Icon Name="check" Size="22" Stroke="3" />
+                    </button>
+                }
+            </div>
+        }
+
+        <button class="add-set" @onclick="AddSet"><Icon Name="plus" Size="18" Stroke="2.6" /> ADD SET</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Workout Workout { get; set; } = default!;
+    [Parameter, EditorRequired] public WorkoutExercise Exercise { get; set; } = default!;
+    [Parameter] public bool Live { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback OnMenu { get; set; }
+
+    private bool _collapsed;
+
+    private Task Changed() => OnChanged.InvokeAsync();
+
+    /// <summary>What to show greyed out in an empty input: last session's matching set, else the set above.</summary>
+    private SetEntry? Placeholder(int idx, List<SetEntry>? prev)
+    {
+        if (prev is { Count: > 0 }) return prev[Math.Min(idx, prev.Count - 1)];
+        for (int i = idx - 1; i >= 0; i--)
+            if (Exercise.Sets[i].HasValues) return Exercise.Sets[i];
+        return null;
+    }
+
+    private static string PrevText(int idx, List<SetEntry>? prev, ExerciseType type) =>
+        prev != null && idx < prev.Count ? ExerciseInfo.FormatSet(prev[idx], type) : "-";
+
+    private async Task CopyPrev(int idx, List<SetEntry>? prev)
+    {
+        if (prev == null || idx >= prev.Count) return;
+        var src = prev[idx];
+        var set = Exercise.Sets[idx];
+        set.Weight = src.Weight;
+        set.Reps = src.Reps;
+        set.Distance = src.Distance;
+        set.Seconds = src.Seconds;
+        await Changed();
+    }
+
+    private async Task SetTime(SetEntry set, ChangeEventArgs e)
+    {
+        set.Seconds = ExerciseInfo.ParseTime(e.Value?.ToString());
+        await Changed();
+    }
+
+    private async Task Toggle(int idx, List<SetEntry>? prev, ExerciseType type)
+    {
+        var set = Exercise.Sets[idx];
+        if (set.Done)
+        {
+            set.Done = false;
+            await Changed();
+            return;
+        }
+
+        // Empty boxes take the greyed-out values, so you can just tap ✓ to repeat last time
+        var ph = Placeholder(idx, prev);
+        if (ph != null)
+        {
+            switch (type)
+            {
+                case ExerciseType.Weight:
+                case ExerciseType.Assisted:
+                    set.Weight ??= ph.Weight;
+                    set.Reps ??= ph.Reps;
+                    break;
+                case ExerciseType.Reps:
+                    set.Reps ??= ph.Reps;
+                    break;
+                case ExerciseType.Duration:
+                    set.Seconds ??= ph.Seconds;
+                    break;
+                default:
+                    set.Distance ??= ph.Distance;
+                    set.Seconds ??= ph.Seconds;
+                    break;
+            }
+        }
+        if (ExerciseInfo.UsesWeight(type)) set.Weight ??= 0;
+
+        bool valid = type switch
+        {
+            ExerciseType.Weight or ExerciseType.Assisted or ExerciseType.Reps => set.Reps is > 0,
+            ExerciseType.Duration => set.Seconds is > 0,
+            _ => set.Seconds is > 0 || set.Distance is > 0
+        };
+        if (!valid)
+        {
+            S.Toast(ExerciseInfo.UsesTime(type) ? "Enter a time first" : "Enter your reps first");
+            return;
+        }
+
+        set.Done = true;
+        S.UnlockAudio(); // lets the end-of-rest beep play later (iOS needs a tap first)
+        if (S.Data.Settings.RestTimerEnabled)
+            Timer.Start(S.RestFor(Exercise.Name));
+        await Changed();
+    }
+
+    private async Task AddSet()
+    {
+        Exercise.Sets.Add(new SetEntry());
+        await Changed();
+    }
+
+    private async Task SetMenu(int idx)
+    {
+        var choice = await D.Choose($"Set {idx + 1}", new ActionItem("Insert set above"), new ActionItem("Delete set", Danger: true));
+        if (choice == 0) Exercise.Sets.Insert(idx, new SetEntry());
+        else if (choice == 1 && idx < Exercise.Sets.Count) Exercise.Sets.RemoveAt(idx);
+        else return;
+        await Changed();
+        StateHasChanged();
+    }
+}

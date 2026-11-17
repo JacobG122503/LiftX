@@ -1,0 +1,92 @@
+@inject AppState S
+@inject Dialogs D
+
+@{
+    var history = S.HistoryOf(Def.Name).Take(8).ToList();
+}
+
+<div class="overlay overlay--bottom" @onclick="OnClose">
+    <div class="sheet sheet--tall" @onclick:stopPropagation="true">
+        <div class="sheet-head">
+            <div class="sheet-title">@Def.Name</div>
+            <button class="icon-btn" @onclick="OnClose" aria-label="Close"><Icon Name="x" Size="26" /></button>
+        </div>
+
+        <div class="detail-grid">
+            <button class="btn-soft" @onclick="Rename"><Icon Name="edit" Size="18" /> Rename</button>
+            <button class="btn-soft" @onclick="EditRest"><Icon Name="timer" Size="18" /> Rest: @ExerciseInfo.FormatRest(S.RestFor(Def.Name))</button>
+        </div>
+
+        <label class="field-label" for="ex-type">Tracks</label>
+        <select id="ex-type" class="input" @bind="Def.Type" @bind:after="Save">
+            @foreach (var t in ExerciseInfo.AllTypes)
+            {
+                <option value="@t">@ExerciseInfo.TypeLabel(t)</option>
+            }
+        </select>
+
+        <label class="field-label" for="ex-note">Note</label>
+        <textarea id="ex-note" class="input" rows="3" placeholder="Seat height, cues, anything. Shows up during every lift."
+                  @bind="Def.Notes" @bind:after="Save"></textarea>
+
+        <div class="field-label">Recent lifts</div>
+        @if (history.Count == 0)
+        {
+            <div class="muted">You haven't done this one yet.</div>
+        }
+        @foreach (var (w, e) in history)
+        {
+            <div class="hist-row">
+                <div class="hist-date">@w.Date.ToString("MMM d, yyyy")</div>
+                <div class="hist-sets">@string.Join(",  ", e.Sets.Select(s => ExerciseInfo.FormatSet(s, Def.Type)))</div>
+            </div>
+        }
+
+        <button class="btn-ghost btn-wide danger" @onclick="Remove"><Icon Name="trash" Size="18" /> Remove exercise</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ExerciseDef Def { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private void Save()
+    {
+        if (string.IsNullOrWhiteSpace(Def.Notes)) Def.Notes = null;
+        S.SaveData();
+    }
+
+    private async Task Rename()
+    {
+        var name = await D.Prompt("Rename exercise", Def.Name, "Exercise name",
+            message: "Renames it everywhere, including past lifts. If the name already exists, the two get merged.");
+        if (string.IsNullOrWhiteSpace(name) || name.Trim() == Def.Name) return;
+        var target = S.FindDef(name.Trim());
+        if (target != null && target != Def &&
+            !await D.Confirm($"Merge into “{target.Name}”?", $"All of {Def.Name}'s history will become {target.Name}.", "Merge"))
+            return;
+        S.RenameExercise(Def, name);
+        if (target != null && target != Def) await OnClose.InvokeAsync();
+    }
+
+    private async Task EditRest()
+    {
+        var text = await D.Prompt($"Rest timer for {Def.Name}", Def.RestSeconds is int r ? ExerciseInfo.FormatTime(r) : "",
+            ExerciseInfo.FormatTime(S.Data.Settings.RestSeconds), inputMode: "numeric",
+            message: $"Type 130 for 1:30. Leave empty to use your default ({ExerciseInfo.FormatRest(S.Data.Settings.RestSeconds)}).");
+        if (text == null) return;
+        Def.RestSeconds = ExerciseInfo.ParseTime(text) is int secs and > 0 ? secs : null;
+        S.SaveData();
+    }
+
+    private async Task Remove()
+    {
+        var sessions = S.SessionCount(Def.Name);
+        var msg = sessions > 0
+            ? $"It won't show up when adding exercises anymore. Your {sessions} past lifts with it stay in your history and stats."
+            : "It will be removed from your exercise list and any routines.";
+        if (!await D.Confirm($"Remove {Def.Name}?", msg, "Remove", danger: true)) return;
+        S.RemoveExercise(Def);
+        await OnClose.InvokeAsync();
+    }
+}

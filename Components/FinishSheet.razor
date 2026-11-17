@@ -1,0 +1,105 @@
+@inject AppState S
+@inject RestTimer Timer
+@inject Dialogs D
+
+@{
+    var p = _preview!;
+    var nothing = p.DoneSets == 0 && !(_includeUnchecked && p.UncheckedWithValues > 0);
+}
+
+<div class="overlay overlay--bottom" @onclick="OnClose">
+    <div class="sheet" @onclick:stopPropagation="true">
+        <div class="sheet-head">
+            <div class="sheet-title">Finish lift?</div>
+            <button class="icon-btn" @onclick="OnClose" aria-label="Close"><Icon Name="x" Size="26" /></button>
+        </div>
+
+        <div class="finish-stats">
+            <div class="fstat"><div class="fstat-v">@p.Exercises</div><div class="fstat-l">Exercises</div></div>
+            <div class="fstat"><div class="fstat-v">@p.DoneSets</div><div class="fstat-l">Sets</div></div>
+            <div class="fstat"><div class="fstat-v">@p.Volume.ToString("N0")</div><div class="fstat-l">Lbs lifted</div></div>
+        </div>
+
+        @if (p.Prs.Count > 0)
+        {
+            <div class="pr-box">
+                <div class="pr-title"><Icon Name="trophy" Size="18" /> New PRs</div>
+                @foreach (var pr in p.Prs)
+                {
+                    <div class="pr-item">@pr</div>
+                }
+            </div>
+        }
+
+        @if (p.UncheckedWithValues > 0)
+        {
+            <div class="sheet-row">
+                <div class="sheet-row-main">
+                    <div class="row-title">Include @p.UncheckedWithValues unchecked @(p.UncheckedWithValues == 1 ? "set" : "sets")</div>
+                    <div class="row-sub">Sets you typed numbers into but didn't check off</div>
+                </div>
+                <Toggle @bind-Value="_includeUnchecked" />
+            </div>
+        }
+
+        @if (p.RoutineChanged)
+        {
+            <div class="sheet-row">
+                <div class="sheet-row-main">
+                    <div class="row-title">Update “@p.RoutineName”</div>
+                    <div class="row-sub">Make the routine match this lift's exercises &amp; sets</div>
+                </div>
+                <Toggle @bind-Value="_updateRoutine" />
+            </div>
+        }
+
+        @if (nothing)
+        {
+            <div class="warn-box">No sets are checked off yet, so there's nothing to save.</div>
+        }
+
+        <div class="finish-actions">
+            <button class="btn-3d btn-wide" disabled="@nothing" @onclick="FinishAndSave">
+                <Icon Name="save" Stroke="2.6" /> Finish &amp; Save to Files
+            </button>
+            <button class="btn-soft btn-wide" disabled="@nothing" @onclick="FinishOnly">Finish (save to Files later)</button>
+            <button class="btn-ghost btn-wide danger" @onclick="Discard">Discard lift</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private AppState.FinishPreview? _preview;
+    private bool _includeUnchecked = true;
+    private bool _updateRoutine;
+
+    protected override void OnInitialized() => _preview = S.PreviewFinish();
+
+    private bool Finish()
+    {
+        if (!S.FinishActive(_includeUnchecked, _updateRoutine)) return false;
+        Timer.Stop();
+        return true;
+    }
+
+    private async Task FinishAndSave()
+    {
+        if (!Finish()) return;
+        // Share sheet has to open straight from this tap, so the export goes first
+        await S.ExportAsync();
+    }
+
+    private void FinishOnly()
+    {
+        if (Finish()) S.Toast("Lift saved 💪 Remember to Save to Files");
+    }
+
+    private async Task Discard()
+    {
+        if (!await D.Confirm("Discard this lift?", "Nothing from it will be saved.", "Discard", danger: true)) return;
+        Timer.Stop();
+        S.DiscardActive();
+    }
+}

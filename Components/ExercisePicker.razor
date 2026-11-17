@@ -1,0 +1,121 @@
+@inject AppState S
+
+@{
+    var q = _query.Trim();
+    var all = S.Library.Where(d => q.Length == 0 || d.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+    var recent = q.Length == 0 ? S.RecentExerciseNames(6) : new List<string>();
+    var exact = q.Length > 0 && S.Library.Any(d => AppState.SameName(d.Name, q));
+}
+
+<div class="fullsheet">
+    <header class="sheet-header">
+        <button class="icon-btn" @onclick="OnClose" aria-label="Back"><Icon Name="chevron-left" Size="28" /></button>
+        <div class="sheet-header-title">@Title</div>
+        <button class="icon-btn" @onclick="() => OpenNew(q)" aria-label="New exercise"><Icon Name="plus" Size="28" /></button>
+    </header>
+
+    <div class="fullsheet-search">
+        <div class="search-bar">
+            <Icon Name="search" Size="20" />
+            <input type="search" placeholder="Search Exercise" autocomplete="off" @bind="_query" @bind:event="oninput" />
+        </div>
+    </div>
+
+    <div class="fullsheet-body">
+        @if (recent.Count > 0)
+        {
+            <div class="list-section">Recent Exercises</div>
+            @foreach (var name in recent)
+            {
+                @Row(name)
+            }
+        }
+
+        <div class="list-section">@(q.Length > 0 ? "Results" : "All Exercises")</div>
+        @foreach (var def in all)
+        {
+            @Row(def.Name)
+        }
+
+        @if (q.Length > 0 && !exact)
+        {
+            <button class="list-row create-row" @onclick="() => OpenNew(q)">
+                <span class="ex-avatar"><Icon Name="plus" Stroke="2.6" /></span>
+                <span class="row-main"><span class="row-title">Create “@q”</span></span>
+            </button>
+        }
+        @if (all.Count == 0 && q.Length == 0)
+        {
+            <div class="empty-state">No exercises yet. Tap <strong>+</strong> to add one.</div>
+        }
+        <div style="height:120px"></div>
+    </div>
+
+    @if (_selected.Count > 0)
+    {
+        <div class="fullsheet-footer">
+            <button class="btn-3d btn-wide" @onclick="Done">
+                @(Single ? "Use this exercise" : $"Add {_selected.Count} exercise{(_selected.Count == 1 ? "" : "s")}")
+            </button>
+        </div>
+    }
+</div>
+
+@if (_newOpen)
+{
+    <NewExerciseDialog InitialName="@_newName" OnCreated="OnCreated" OnCancel="() => _newOpen = false" />
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = "Add Exercise";
+    [Parameter] public bool Single { get; set; }
+    [Parameter] public EventCallback<List<string>> OnPicked { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string _query = "";
+    private readonly List<string> _selected = new();
+    private bool _newOpen;
+    private string _newName = "";
+
+    private RenderFragment Row(string name) => __builder =>
+    {
+        var on = _selected.Any(s => AppState.SameName(s, name));
+        var type = S.TypeOf(name);
+        var sub = ExerciseInfo.UsesWeight(type) || type == ExerciseType.Reps ? ExerciseInfo.MuscleGroup(name) : ExerciseInfo.ShortTypeLabel(type);
+        <button class="list-row @(on ? "selected" : "")" @onclick="() => ToggleSel(name)">
+            <ExAvatar Name="@name" />
+            <span class="row-main">
+                <span class="row-title">@name</span>
+                <span class="row-sub">@sub</span>
+            </span>
+            <span class="pick-check @(on ? "on" : "")"><Icon Name="check" Size="18" Stroke="3" /></span>
+        </button>
+    };
+
+    private void ToggleSel(string name)
+    {
+        var existing = _selected.FirstOrDefault(s => AppState.SameName(s, name));
+        if (existing != null) _selected.Remove(existing);
+        else
+        {
+            if (Single) _selected.Clear();
+            _selected.Add(name);
+        }
+    }
+
+    private void OpenNew(string name)
+    {
+        _newName = name;
+        _newOpen = true;
+    }
+
+    private void OnCreated(ExerciseDef def)
+    {
+        _newOpen = false;
+        _query = "";
+        if (Single) _selected.Clear();
+        if (!_selected.Any(s => AppState.SameName(s, def.Name))) _selected.Add(def.Name);
+    }
+
+    private Task Done() => OnPicked.InvokeAsync(_selected.ToList());
+}

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>LiftX</title>
+    <!-- Relative base so the app works both locally (/) and on GitHub Pages (/<repo>/) with no rewriting -->
+    <base href="./" />
+    <link rel="preload" id="webassembly" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LiftX" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="format-detection" content="telephone=no" />
+    <script>
+        // Theme engine. Runs before anything renders so there's no flash of the wrong colors.
+        // Everything (cards, inputs, text) is derived from two colors: the main color and the accent.
+        window.__liftxTheme = function (bg, accent) {
+            function rgb(h) {
+                h = (h || '').replace('#', '');
+                if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+                var n = parseInt(h, 16);
+                if (h.length !== 6 || isNaN(n)) return null;
+                return [n >> 16 & 255, n >> 8 & 255, n & 255];
+            }
+            function mix(a, b, t) { return a.map(function (v, i) { return Math.round(v + (b[i] - v) * t); }); }
+            function hex(c) { return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join(''); }
+            function lum(c) {
+                var a = c.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+                return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+            }
+            var B = rgb(bg) || [0, 0, 0], A = rgb(accent) || [60, 179, 113];
+            var light = lum(B) > 0.4;
+            var toward = light ? [0, 0, 0] : [255, 255, 255];
+            function surface(amt) { return hex(mix(mix(B, toward, amt), A, light ? 0.02 : 0.035)); }
+            var T = light ? [22, 24, 29] : [243, 244, 246];
+            var la = lum(A);
+            var onAccent = (la + 0.05) / 0.05 >= 1.05 / (la + 0.05) ? '#000000' : '#ffffff';
+            var s = document.documentElement.style;
+            s.setProperty('--bg', hex(B));
+            s.setProperty('--surface', surface(light ? 0.035 : 0.07));
+            s.setProperty('--surface-2', surface(light ? 0.07 : 0.12));
+            s.setProperty('--surface-3', surface(light ? 0.12 : 0.19));
+            s.setProperty('--text', hex(T));
+            s.setProperty('--text-2', 'rgba(' + T + ',0.74)');
+            s.setProperty('--muted', 'rgba(' + T + ',0.48)');
+            s.setProperty('--border', 'rgba(' + T + ',0.10)');
+            s.setProperty('--accent', hex(A));
+            s.setProperty('--accent-dark', hex(mix(A, [0, 0, 0], 0.38)));
+            s.setProperty('--accent-bg', 'rgba(' + A + ',0.14)');
+            s.setProperty('--accent-bg-2', 'rgba(' + A + ',0.28)');
+            s.setProperty('--on-accent', onAccent);
+            s.colorScheme = light ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', hex(B));
+            if (window.chartInterop && window.chartInterop.refreshAllCharts) window.chartInterop.refreshAllCharts();
+        };
+        (function () {
+            var t = null;
+            try { t = JSON.parse(localStorage.getItem('liftx:theme') || 'null'); } catch (e) { }
+            window.__liftxTheme((t && t.bg) || '#000000', (t && t.accent) || '#3CB371');
+        })();
+    </script>
+    <script type="importmap"></script>
+</head>
+
+<body>
+    <div id="app">
+        <div class="boot">
+            <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+                <rect width="64" height="64" rx="16" fill="var(--accent)" />
+                <rect x="9" y="22" width="7" height="20" rx="2.5" fill="var(--on-accent)" />
+                <rect x="17" y="26" width="5" height="12" rx="2" fill="var(--on-accent)" />
+                <rect x="22" y="30" width="20" height="4" rx="2" fill="var(--on-accent)" />
+                <rect x="42" y="26" width="5" height="12" rx="2" fill="var(--on-accent)" />
+                <rect x="48" y="22" width="7" height="20" rx="2.5" fill="var(--on-accent)" />
+            </svg>
+            <div class="boot-spinner"></div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        Something went wrong. Your data is safe on this phone.
+        <a href="" class="reload">Reload</a>
+        <span class="dismiss">✕</span>
+    </div>
+
+    <script src="lib/chart.umd.min.js"></script>
+    <script src="js/liftx.js"></script>
+    <script src="js/chartInterop.js"></script>
+    <script src="js/shareInterop.js"></script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).catch(function () { });
+        }
+    </script>
+</body>
+
+</html>

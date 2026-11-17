@@ -1,0 +1,91 @@
+@inherits StateComponent
+@inject Dialogs D
+
+@{
+    var q = _query.Trim();
+    var list = S.Library.Where(d => q.Length == 0 || d.Name.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+}
+
+<div class="search-bar">
+    <Icon Name="search" Size="20" />
+    <input type="search" placeholder="Search exercises" autocomplete="off" @bind="_query" @bind:event="oninput" />
+</div>
+
+<div class="list-toolbar">
+    <span class="muted">@list.Count exercises</span>
+    <button class="btn-3d btn-small" @onclick="() => _newOpen = true"><Icon Name="plus" Size="18" Stroke="3" /> Add</button>
+</div>
+
+<div class="card list-card">
+    @foreach (var def in list)
+    {
+        var d = def;
+        var sessions = S.SessionCount(def.Name);
+        var last = S.LastDone(def.Name);
+        <div class="list-row" @onclick="() => _detail = d">
+            <ExAvatar Name="@def.Name" />
+            <div class="row-main">
+                <div class="row-title">@def.Name</div>
+                <div class="row-sub">
+                    @(ExerciseInfo.UsesWeight(def.Type) || def.Type == ExerciseType.Reps ? ExerciseInfo.MuscleGroup(def.Name) : ExerciseInfo.ShortTypeLabel(def.Type))
+                    @if (sessions > 0)
+                    {
+                        <span> · @sessions @(sessions == 1 ? "lift" : "lifts") · last @last!.Value.ToString("MMM d")</span>
+                    }
+                </div>
+            </div>
+            <button class="icon-btn danger-soft" @onclick="() => Remove(d)" @onclick:stopPropagation="true" aria-label="Remove @def.Name">
+                <Icon Name="trash" Size="20" />
+            </button>
+        </div>
+    }
+    @if (list.Count == 0)
+    {
+        <div class="empty-state">
+            @if (q.Length > 0)
+            {
+                <span>No exercise called “@q”. </span>
+                <button class="link-btn" @onclick="() => _newOpen = true">Add it</button>
+            }
+            else
+            {
+                <span>No exercises yet. Tap <strong>Add</strong> to create one.</span>
+            }
+        </div>
+    }
+</div>
+
+@if (_newOpen)
+{
+    <NewExerciseDialog InitialName="@q" OnCreated="OnCreated" OnCancel="() => _newOpen = false" />
+}
+@if (_detail != null)
+{
+    <ExerciseDetail Def="_detail" OnClose="() => _detail = null" />
+}
+
+@code {
+    private string _query = "";
+    private bool _newOpen;
+    private ExerciseDef? _detail;
+
+    private void OnCreated(ExerciseDef def)
+    {
+        _newOpen = false;
+        _query = "";
+        S.Toast($"Added {def.Name}");
+    }
+
+    private async Task Remove(ExerciseDef def)
+    {
+        var sessions = S.SessionCount(def.Name);
+        var msg = sessions > 0
+            ? $"It won't show up when adding exercises anymore. Your {sessions} past lifts with it stay in your history and stats."
+            : "It will be removed from your exercise list and any routines.";
+        if (await D.Confirm($"Remove {def.Name}?", msg, "Remove", danger: true))
+        {
+            S.RemoveExercise(def);
+            S.Toast($"Removed {def.Name}");
+        }
+    }
+}

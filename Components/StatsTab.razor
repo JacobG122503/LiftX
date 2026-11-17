@@ -1,0 +1,305 @@
+@* Ported from LiftoffVisualizer's Home.razor. Same stats, now fed by LiftX's own data. *@
+@inherits StateComponent
+@inject IJSRuntime JS
+
+@{
+    var st = Snap;
+}
+
+@if (st.Records.Count == 0)
+{
+    <div class="card empty-card">
+        <div class="empty-emoji">📈</div>
+        <div><strong>No stats yet</strong></div>
+        <div class="muted">Finish a lift and your charts show up here.</div>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h2 class="page-title">Your Lifting Journey</h2>
+            <p class="page-subtitle">
+                @st.TotalWorkouts workouts tracked across @st.ExerciseNames.Count exercises since @st.FirstDate.ToString("MMM yyyy")
+            </p>
+        </div>
+        <button class="share-btn" @onclick="ShareProgress" title="Share your progress">
+            <Icon Name="share" Size="18" /> Share
+        </button>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-card-value">@st.TotalWorkouts</div>
+            <div class="summary-card-label">Total Workouts</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-value">@st.ExerciseNames.Count</div>
+            <div class="summary-card-label">Exercises</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-value">@st.TotalVolume.ToString("N0")</div>
+            <div class="summary-card-label">Total Lbs Lifted</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-value">@st.TotalSets.ToString("N0")</div>
+            <div class="summary-card-label">Total Sets</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-value">@((DateTime.Now - st.FirstDate).Days)</div>
+            <div class="summary-card-label">Days Since Start</div>
+        </div>
+    </div>
+
+    <details class="more-stats-section">
+        <summary class="more-stats-toggle">More Stats</summary>
+        <div class="more-stats-grid">
+            @Stat("🔥", st.LongestStreak.ToString(), "Longest Streak (days)")
+            @Stat("😴", st.LongestBreak.ToString(), "Longest Break (days)")
+            @Stat("⭐", st.FavoriteExercise, "Favorite Exercise")
+            @Stat("📈", st.MostImprovedExercise, $"Most Improved (+{st.MostImprovedGain:N0} lbs)")
+            @Stat("📅", st.MostActiveWeekday, "Day you train most often")
+            @Stat("🗓️", st.PeakMonth, "Your most active month")
+            @Stat("📊", st.AvgWorkoutsPerWeek.ToString(), "Avg Workouts / Week")
+            @Stat("💪", st.TotalRepsAllTime.ToString("N0"), "Total Reps All Time")
+            @Stat("🏋️", $"{ExerciseInfo.Num(st.HeaviestLift)} lbs", $"Heaviest Lift ({st.HeaviestExercise})")
+            @Stat("⚡", st.MaxSetsInSession.ToString(), "Most Sets in One Day", st.MaxSetsDate)
+            @Stat("🔄", st.MaxRepsInSession.ToString(), $"Most Reps: {st.MaxRepsExercise}", st.MaxRepsDate)
+            @Stat("💥", $"{st.MaxVolumeInSession:N0} lbs", "Best Volume in One Day", st.MaxVolumeDate)
+            @Stat("🧩", st.MaxExercisesInSession.ToString(), "Most Exercises in One Day", st.MaxExercisesDate)
+            @Stat("🌱", st.FirstExercise, "First Exercise Ever Logged")
+        </div>
+        <div class="more-stats-grid">
+            @Stat("📅", string.IsNullOrEmpty(st.MostConsistentMonth) ? "-" : st.MostConsistentMonth, "Most Consistent Month")
+            @Stat("⏱️", st.AvgWorkoutDuration > 0 ? st.AvgWorkoutDuration.ToString("N1") + " min" : "-", "Avg Workout Duration (Liftoff lifts)")
+            @Stat("🌅", TimeText(st.EarliestWorkoutTime), "Earliest Workout Time", st.EarliestWorkoutDate)
+            @Stat("🌙", TimeText(st.LatestWorkoutTime), "Latest Workout Time", st.LatestWorkoutDate)
+            @Stat("🏷️", st.MostFrequentWorkoutName, "Most Frequent Workout Name")
+            @Stat("🏋️‍♂️", st.MostUsedWeight > 0 ? ExerciseInfo.Num(st.MostUsedWeight) : "-", "Most Used Weight")
+            @Stat("🚴", st.TotalDistance > 0 ? st.TotalDistance.ToString("N1") : "-", "Total Distance (mi)")
+        </div>
+    </details>
+
+    <div class="muscle-pills">
+        <button class="muscle-pill @(_selectedMuscle == "All" ? "active" : "")" @onclick='() => _selectedMuscle = "All"'>
+            All <span class="pill-count">@st.ExerciseNames.Count</span>
+        </button>
+        @foreach (var mg in st.MuscleGroups.OrderBy(m => m.Key))
+        {
+            var key = mg.Key;
+            <button class="muscle-pill @(_selectedMuscle == key ? "active" : "")" @onclick="() => _selectedMuscle = key">
+                @mg.Key <span class="pill-count">@mg.Value</span>
+            </button>
+        }
+    </div>
+
+    <div class="search-bar stats-search">
+        <Icon Name="search" Size="20" />
+        <input type="search" placeholder="Search exercises..." autocomplete="off" @bind="_searchQuery" @bind:event="oninput" />
+    </div>
+
+    <div class="global-controls-row">
+        <span class="global-filter-label">Range</span>
+        <div class="time-range-btns global-time-range">
+            @foreach (var range in TimeRanges)
+            {
+                var days = range.Days;
+                <button class="time-btn @(days == _globalDays ? "active" : "")" @onclick="() => _globalDays = days">@range.Label</button>
+            }
+        </div>
+    </div>
+
+    <div class="metric-selector global-metric-selector">
+        @foreach (var opt in MetricOptions)
+        {
+            var key = opt.Key;
+            <button class="metric-btn @(_globalMetric == key ? "active" : "")" @onclick="() => _globalMetric = key">@opt.Label</button>
+        }
+    </div>
+
+    var filtered = Filtered(st);
+    var withData = filtered.Where(e => HasDataInPeriod(st, e)).ToList();
+    <div class="trend-sort-row">
+        <div class="trend-counts-row">
+            <span class="trend-count trend-count--up" title="Trending up">
+                <svg width="10" height="9" viewBox="0 0 12 11"><polygon points="6,0 12,11 0,11" fill="#4CAF50" /></svg>
+                @withData.Count(e => Trend(st, e) == "up")
+            </span>
+            <span class="trend-count trend-count--down" title="Trending down">
+                <svg width="10" height="9" viewBox="0 0 12 11"><polygon points="0,0 12,0 6,11" fill="#f44336" /></svg>
+                @withData.Count(e => Trend(st, e) == "down")
+            </span>
+            <span class="trend-count trend-count--neutral" title="No change">
+                <svg width="12" height="5" viewBox="0 0 14 6"><line x1="1" y1="3" x2="13" y2="3" stroke="#9E9E9E" stroke-width="2" stroke-linecap="round" /></svg>
+                @withData.Count(e => Trend(st, e) == "neutral")
+            </span>
+        </div>
+        <div class="sort-select-wrap">
+            <label class="sort-select-label" for="sort-select">Sort</label>
+            <select id="sort-select" class="sort-select" @bind="_sortOrder">
+                <option value="recent">Most Recent</option>
+                <option value="trend_asc">Trending Up</option>
+                <option value="trend_desc">Trending Down</option>
+                <option value="alpha_asc">A → Z</option>
+                <option value="alpha_desc">Z → A</option>
+                <option value="sessions_desc">Most Sessions</option>
+                <option value="muscle">Muscle Group</option>
+            </select>
+        </div>
+    </div>
+
+    @if (filtered.Count > 0)
+    {
+        <div class="exercise-grid">
+            @foreach (var exercise in filtered)
+            {
+                <ExerciseCard @key="exercise"
+                              ExerciseName="@exercise"
+                              Type="@st.Types[exercise]"
+                              AllData="@st.Summaries[exercise]"
+                              MetricOverride="@_globalMetric"
+                              DaysOverride="@_globalDays" />
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">No exercises found matching your filters.</div>
+    }
+}
+
+@if (_showSharePreview)
+{
+    <div class="overlay" @onclick="() => _showSharePreview = false">
+        <div class="share-preview-modal" @onclick:stopPropagation="true">
+            <div class="share-preview-header">
+                <span>Share Your Progress</span>
+                <button class="icon-btn" @onclick="() => _showSharePreview = false"><Icon Name="x" /></button>
+            </div>
+            <img src="@_previewImageUrl" class="share-preview-img" alt="Share preview" />
+            <div class="share-preview-actions">
+                <button class="btn-ghost" @onclick="() => _showSharePreview = false">Cancel</button>
+                <button class="btn-3d btn-small" @onclick="ConfirmShare"><Icon Name="share" Size="16" /> Share / Download</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static StatsSnapshot? _cache;
+
+    private string _selectedMuscle = "All";
+    private string _searchQuery = "";
+    private string _globalMetric = "est1rm";
+    private int _globalDays = 0;
+    private string _sortOrder = "recent";
+    private bool _showSharePreview;
+    private string _previewImageUrl = "";
+
+    private static readonly (string Label, int Days)[] TimeRanges =
+        { ("15D", 15), ("30D", 30), ("90D", 90), ("6M", 180), ("1Y", 365), ("All", 0) };
+
+    private static readonly (string Key, string Label)[] MetricOptions =
+        { ("est1rm", "Est. 1RM"), ("weight", "Max Weight"), ("volume", "Volume"), ("reps", "Total Reps") };
+
+    private StatsSnapshot Snap
+    {
+        get
+        {
+            if (_cache == null || _cache.Version != S.Version)
+                _cache = StatsEngine.Build(S.Data.Workouts, S.TypeOf, S.Version);
+            return _cache;
+        }
+    }
+
+    private RenderFragment Stat(string icon, string value, string label, DateTime? date = null) => __builder =>
+    {
+        <div class="more-stat-card">
+            <div class="more-stat-icon">@icon</div>
+            <div class="more-stat-value" style="@StatFontSize(value)">@value</div>
+            <div class="more-stat-label">@label</div>
+            @if (date.HasValue && date.Value != default)
+            {
+                <div class="more-stat-date">on @date.Value.ToString("MMM d, yyyy")</div>
+            }
+        </div>
+    };
+
+    private static string TimeText(TimeSpan? t) => t.HasValue ? DateTime.Today.Add(t.Value).ToString("h:mm tt") : "-";
+
+    private static string StatFontSize(string val) => val.Length switch
+    {
+        > 20 => "font-size:0.75rem",
+        > 14 => "font-size:0.9rem",
+        > 10 => "font-size:1rem",
+        _ => ""
+    };
+
+    private List<ExerciseSummary> PeriodData(StatsSnapshot st, string name)
+    {
+        var all = st.Summaries[name];
+        if (_globalDays == 0) return all;
+        var cutoff = DateTime.Now.AddDays(-_globalDays);
+        return all.Where(d => d.Date >= cutoff).ToList();
+    }
+
+    private bool HasDataInPeriod(StatsSnapshot st, string name) =>
+        _globalDays == 0 || st.Summaries[name].Any(d => d.Date >= DateTime.Now.AddDays(-_globalDays));
+
+    // Mirrors ExerciseCard's trend so the sort order matches the triangles on each card
+    private string Trend(StatsSnapshot st, string name)
+    {
+        var data = PeriodData(st, name);
+        if (data.Count < 2) return "neutral";
+        var metric = StatsEngine.EffectiveMetric(st.Types[name], _globalMetric, data);
+        return StatsEngine.TrendDirection(StatsEngine.Values(data, metric));
+    }
+
+    private List<string> Filtered(StatsSnapshot st) => st.ExerciseNames
+        .Where(e => (_selectedMuscle == "All" || ExerciseInfo.MuscleGroup(e) == _selectedMuscle)
+                    && (string.IsNullOrWhiteSpace(_searchQuery) || e.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase)))
+        .OrderBy(e => HasDataInPeriod(st, e) ? 0 : 1)
+        .ThenBy(e => _sortOrder switch
+        {
+            "alpha_asc" => (object)e,
+            "alpha_desc" => string.Concat(e.Select(c => (char)(char.MaxValue - c))),
+            "muscle" => ExerciseInfo.MuscleGroup(e),
+            "sessions_desc" => int.MaxValue - st.Summaries[e].Count,
+            "trend_desc" => Trend(st, e) switch { "down" => 0, "neutral" => 1, _ => 2 },
+            "trend_asc" => Trend(st, e) switch { "up" => 0, "neutral" => 1, _ => 2 },
+            _ => (object)(DateTime.MaxValue - st.Summaries[e].Max(s => s.Date))
+        })
+        .ToList();
+
+    private async Task ShareProgress()
+    {
+        var st = Snap;
+        var stats = new
+        {
+            totalWorkouts = st.TotalWorkouts,
+            exerciseCount = st.ExerciseNames.Count,
+            totalVolume = st.TotalVolume,
+            totalSets = st.TotalSets,
+            totalReps = st.TotalRepsAllTime,
+            daysSinceStart = (DateTime.Now - st.FirstDate).Days,
+            sinceDate = st.FirstDate.ToString("MMM yyyy"),
+            longestStreak = st.LongestStreak,
+            longestBreak = st.LongestBreak,
+            favoriteExercise = st.FavoriteExercise,
+            mostImprovedExercise = st.MostImprovedExercise,
+            mostImprovedGain = st.MostImprovedGain,
+            heaviestLift = st.HeaviestLift,
+            heaviestExercise = st.HeaviestExercise,
+            avgWorkoutsPerWeek = st.AvgWorkoutsPerWeek,
+            busiestDay = st.MostActiveWeekday
+        };
+        _previewImageUrl = await JS.InvokeAsync<string>("shareInterop.generatePreview", stats);
+        _showSharePreview = true;
+    }
+
+    private async Task ConfirmShare()
+    {
+        await JS.InvokeVoidAsync("shareInterop.shareFromPreview");
+        _showSharePreview = false;
+    }
+}

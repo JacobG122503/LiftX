@@ -1,0 +1,77 @@
+@inherits StateComponent
+@inject IJSRuntime JS
+
+@{
+    var today = DateOnly.FromDateTime(DateTime.Now);
+    var byDay = S.Data.Workouts.GroupBy(w => DateOnly.FromDateTime(w.Date)).ToDictionary(g => g.Key, g => g.Count());
+    var weekStart = today.AddDays(-(int)today.DayOfWeek);
+    int thisWeek = byDay.Where(kv => kv.Key >= weekStart && kv.Key <= today).Sum(kv => kv.Value);
+    int thisMonth = byDay.Where(kv => kv.Key.Year == today.Year && kv.Key.Month == today.Month).Sum(kv => kv.Value);
+    int thisYear = byDay.Where(kv => kv.Key.Year == today.Year).Sum(kv => kv.Value);
+    var first = byDay.Count > 0 ? byDay.Keys.Min() : today;
+    var lastKey = byDay.Count > 0 ? byDay.Keys.Max() : today;
+    var end = lastKey > today ? lastKey : today;
+    var month = new DateOnly(first.Year, first.Month, 1);
+    var endMonth = new DateOnly(end.Year, end.Month, 1);
+}
+
+<div class="cal-stats">
+    <div class="cal-stat"><div class="cal-stat-v">@thisWeek</div><div class="cal-stat-l">This week</div></div>
+    <div class="cal-stat"><div class="cal-stat-v">@thisMonth</div><div class="cal-stat-l">This month</div></div>
+    <div class="cal-stat"><div class="cal-stat-v">@thisYear</div><div class="cal-stat-l">This year</div></div>
+    <div class="cal-stat"><div class="cal-stat-v">@S.Data.Workouts.Count</div><div class="cal-stat-l">All time</div></div>
+</div>
+
+@for (var m = month; m <= endMonth; m = m.AddMonths(1))
+{
+    var mm = m;
+    var days = DateTime.DaysInMonth(m.Year, m.Month);
+    var lead = (int)m.DayOfWeek;
+    var count = byDay.Where(kv => kv.Key.Year == m.Year && kv.Key.Month == m.Month).Sum(kv => kv.Value);
+    <section class="cal-month" @key="mm">
+        <div class="cal-month-head">
+            <span>@m.ToString("MMMM yyyy")</span>
+            <span class="cal-month-count">@count @(count == 1 ? "lift" : "lifts")</span>
+        </div>
+        <div class="cal-grid cal-dow">
+            <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+        </div>
+        <div class="cal-grid">
+            @for (int b = 0; b < lead; b++)
+            {
+                <div></div>
+            }
+            @for (int d = 1; d <= days; d++)
+            {
+                var day = new DateOnly(m.Year, m.Month, d);
+                var n = byDay.TryGetValue(day, out var c) ? c : 0;
+                <button class="cal-day @(n > 0 ? "has" : "") @(day == today ? "today" : "") @(day > today ? "future" : "")"
+                        @onclick="() => _day = day">
+                    <span>@d</span>
+                    @if (n > 1)
+                    {
+                        <span class="cal-multi">×@n</span>
+                    }
+                </button>
+            }
+        </div>
+    </section>
+}
+
+@if (_day != null)
+{
+    <DaySheet Day="_day.Value" OnClose="() => _day = null" />
+}
+
+@code {
+    private DateOnly? _day;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Like Liftoff: open scrolled to the current month
+        if (firstRender)
+        {
+            try { await JS.InvokeVoidAsync("liftx.scrollToBottom"); } catch { }
+        }
+    }
+}

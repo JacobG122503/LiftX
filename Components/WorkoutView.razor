@@ -1,0 +1,243 @@
+@inherits StateComponent
+@inject RestTimer Timer
+@inject Dialogs D
+
+<div class="wk">
+    <header class="wk-header">
+        @if (Live)
+        {
+            <button class="icon-btn" @onclick="S.MinimizeWorkout" aria-label="Minimize"><Icon Name="chevron-down" Size="28" /></button>
+            <button class="icon-btn rest-btn" @onclick="() => _restSheet = true" aria-label="Rest timer">
+                <Icon Name="timer" Size="24" /><RestChip />
+            </button>
+        }
+        else
+        {
+            <button class="text-btn" @onclick="CancelEdit">Cancel</button>
+        }
+
+        <button class="wk-title" @onclick="Rename">
+            <span class="wk-title-text">@TitleText</span>
+        </button>
+
+        @if (Live)
+        {
+            <button class="icon-btn" @onclick="Menu" aria-label="More"><Icon Name="more" /></button>
+            <button class="finish-btn" @onclick="() => _finish = true" aria-label="Finish lift"><Icon Name="arrow-right" Size="24" Stroke="2.6" /></button>
+        }
+        else
+        {
+            <button class="text-btn accent" @onclick="SaveEdit">Save</button>
+        }
+    </header>
+
+    <div class="wk-body">
+        @if (!Live)
+        {
+            <div class="edit-date">
+                <label class="field-label" for="wk-date">Date &amp; time</label>
+                <input id="wk-date" class="input" type="datetime-local" @bind="Workout.Date" @bind:format="yyyy-MM-ddTHH:mm" />
+            </div>
+        }
+
+        <textarea class="wk-notes" rows="2" placeholder="Your workout notes..." @bind="Workout.Notes" @bind:after="Changed"></textarea>
+
+        @for (int i = 0; i < Workout.Exercises.Count; i++)
+        {
+            var idx = i;
+            var ex = Workout.Exercises[i];
+            <ExerciseBlock @key="ex" Workout="Workout" Exercise="ex" Live="Live"
+                           OnChanged="Changed" OnMenu="() => ExerciseMenu(idx)" />
+        }
+
+        @if (Workout.Exercises.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-emoji">💪</div>
+                <div>Add your first exercise to get going.</div>
+            </div>
+        }
+
+        <div class="center-row">
+            <button class="btn-3d btn-big" @onclick="OpenPicker"><Icon Name="plus" Stroke="3" /> Exercise</button>
+        </div>
+        <div class="wk-bottom-space"></div>
+    </div>
+
+    @if (Live)
+    {
+        <RestTimerBar />
+    }
+</div>
+
+@if (_picker)
+{
+    <ExercisePicker Title="@(_replaceIdx >= 0 ? "Replace Exercise" : "Add Exercise")" Single="@(_replaceIdx >= 0)"
+                    OnPicked="OnPicked" OnClose="ClosePicker" />
+}
+@if (_restSheet)
+{
+    <RestTimerSheet Workout="Workout" OnClose="() => _restSheet = false" />
+}
+@if (_finish)
+{
+    <FinishSheet OnClose="() => _finish = false" />
+}
+
+@code {
+    [Parameter, EditorRequired] public Workout Workout { get; set; } = default!;
+    [Parameter] public bool Live { get; set; }
+
+    private bool _picker, _restSheet, _finish;
+    private int _replaceIdx = -1;
+
+    private string TitleText => !string.IsNullOrWhiteSpace(Workout.Name)
+        ? Workout.Name!
+        : Live ? "Lift" : (S.EditingIsNew ? "Log a lift" : "Edit lift");
+
+    private void Changed()
+    {
+        if (Live) S.SaveActive();
+    }
+
+    private async Task Rename()
+    {
+        var name = await D.Prompt("Lift name", Workout.Name, "e.g. Push Day");
+        if (name == null) return;
+        Workout.Name = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        Changed();
+        StateHasChanged();
+    }
+
+    private async Task Menu()
+    {
+        var choice = await D.Choose(null,
+            new ActionItem("Rename lift"),
+            new ActionItem("Rest timer"),
+            new ActionItem("Discard lift", Danger: true));
+        switch (choice)
+        {
+            case 0: await Rename(); break;
+            case 1: _restSheet = true; StateHasChanged(); break;
+            case 2:
+                if (await D.Confirm("Discard this lift?", "Nothing from it will be saved.", "Discard", danger: true))
+                {
+                    Timer.Stop();
+                    S.DiscardActive();
+                }
+                break;
+        }
+    }
+
+    private void OpenPicker()
+    {
+        _replaceIdx = -1;
+        _picker = true;
+    }
+
+    private void ClosePicker()
+    {
+        _picker = false;
+        _replaceIdx = -1;
+    }
+
+    private void OnPicked(List<string> names)
+    {
+        if (_replaceIdx >= 0 && _replaceIdx < Workout.Exercises.Count && names.Count > 0)
+        {
+            Workout.Exercises[_replaceIdx].Name = names[0];
+        }
+        else
+        {
+            foreach (var name in names)
+            {
+                var prev = S.PreviousSets(name, Live ? DateTime.MaxValue : Workout.Date, Workout.Id);
+                var type = S.TypeOf(name);
+                var count = prev?.Count ?? (ExerciseInfo.UsesTime(type) ? 1 : 3);
+                Workout.Exercises.Add(new WorkoutExercise
+                {
+                    Name = name,
+                    Sets = Enumerable.Range(0, Math.Clamp(count, 1, 10)).Select(_ => new SetEntry()).ToList()
+                });
+            }
+        }
+        ClosePicker();
+        Changed();
+    }
+
+    private async Task ExerciseMenu(int idx)
+    {
+        if (idx < 0 || idx >= Workout.Exercises.Count) return;
+        var ex = Workout.Exercises[idx];
+        var rest = S.RestFor(ex.Name);
+        var choice = await D.Choose(ex.Name,
+            new ActionItem("Edit note"),
+            new ActionItem($"Rest timer: {ExerciseInfo.FormatRest(rest)}"),
+            new ActionItem("Move up"),
+            new ActionItem("Move down"),
+            new ActionItem("Replace exercise"),
+            new ActionItem("Remove exercise", Danger: true));
+        switch (choice)
+        {
+            case 0: await EditNote(ex.Name); break;
+            case 1: await EditRest(ex.Name); break;
+            case 2: Move(idx, -1); break;
+            case 3: Move(idx, 1); break;
+            case 4: _replaceIdx = idx; _picker = true; break;
+            case 5:
+                if (!ex.Sets.Any(s => s.Done || s.HasValues) ||
+                    await D.Confirm($"Remove {ex.Name}?", "Its sets in this lift will be deleted.", "Remove", danger: true))
+                {
+                    Workout.Exercises.Remove(ex);
+                    Changed();
+                }
+                break;
+        }
+        StateHasChanged();
+    }
+
+    private void Move(int idx, int delta)
+    {
+        var j = idx + delta;
+        if (j < 0 || j >= Workout.Exercises.Count) return;
+        (Workout.Exercises[idx], Workout.Exercises[j]) = (Workout.Exercises[j], Workout.Exercises[idx]);
+        Changed();
+    }
+
+    private async Task EditNote(string name)
+    {
+        var def = S.FindDef(name);
+        var text = await D.Prompt($"Note for {name}", def?.Notes, "Seat height, cues, anything…", multiline: true,
+            message: "Shows up every time you do this exercise.");
+        if (text == null) return;
+        def ??= S.AddExercise(name, S.TypeOf(name));
+        def.Notes = string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        S.SaveData();
+    }
+
+    private async Task EditRest(string name)
+    {
+        var def = S.FindDef(name);
+        var current = def?.RestSeconds;
+        var text = await D.Prompt($"Rest timer for {name}", current.HasValue ? ExerciseInfo.FormatTime(current) : "",
+            ExerciseInfo.FormatTime(S.Data.Settings.RestSeconds), inputMode: "numeric",
+            message: $"Type 130 for 1:30, 200 for 2:00. Leave empty to use your default ({ExerciseInfo.FormatRest(S.Data.Settings.RestSeconds)}).");
+        if (text == null) return;
+        def ??= S.AddExercise(name, S.TypeOf(name));
+        var secs = ExerciseInfo.ParseTime(text);
+        def.RestSeconds = secs is > 0 ? secs : null;
+        S.SaveData();
+    }
+
+    private async Task CancelEdit()
+    {
+        if (await D.Confirm("Discard changes?", null, "Discard", danger: true, cancel: "Keep editing"))
+            S.CancelEdit();
+    }
+
+    private void SaveEdit()
+    {
+        var isNew = S.EditingIsNew;
+        if (S.SaveEdit()) S.Toast(isNew ? "Lift logged" : "Lift updated");
+    }
+}

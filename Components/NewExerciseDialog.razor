@@ -1,0 +1,60 @@
+@inject AppState S
+
+<div class="overlay" @onclick="OnCancel">
+    <div class="dialog" @onclick:stopPropagation="true">
+        <div class="dialog-title">New exercise</div>
+        <input id="new-ex-name" class="input" placeholder="Exercise name" autocomplete="off"
+               @bind="_name" @bind:event="oninput" @bind:after="NameChanged" @onkeydown="OnKey" />
+        <label class="field-label" for="new-ex-type">Tracks</label>
+        <select id="new-ex-type" class="input" @bind="_type" @bind:after="() => _typeTouched = true">
+            @foreach (var t in ExerciseInfo.AllTypes)
+            {
+                <option value="@t">@ExerciseInfo.TypeLabel(t)</option>
+            }
+        </select>
+        @if (Existing is { Archived: false })
+        {
+            <div class="dialog-msg">“@Existing.Name” is already in your list. Adding it will just select it.</div>
+        }
+        <div class="dialog-btns">
+            <button class="btn btn-ghost" @onclick="OnCancel">Cancel</button>
+            <button class="btn btn-accent" disabled="@string.IsNullOrWhiteSpace(_name)" @onclick="Create">Add</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string InitialName { get; set; } = "";
+    [Parameter] public EventCallback<ExerciseDef> OnCreated { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _name = "";
+    private ExerciseType _type = ExerciseType.Weight;
+    private bool _typeTouched;
+
+    private ExerciseDef? Existing => string.IsNullOrWhiteSpace(_name) ? null : S.FindDef(_name.Trim());
+
+    protected override void OnInitialized()
+    {
+        _name = InitialName;
+        NameChanged();
+    }
+
+    private void NameChanged()
+    {
+        if (!_typeTouched) _type = ExerciseInfo.GuessType(_name);
+    }
+
+    private async Task Create()
+    {
+        if (string.IsNullOrWhiteSpace(_name)) return;
+        var existing = Existing;
+        var def = existing is { Archived: false } ? existing : S.AddExercise(_name, _type);
+        await OnCreated.InvokeAsync(def);
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Create();
+    }
+}

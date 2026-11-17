@@ -1,0 +1,130 @@
+@inherits StateComponent
+@inject Dialogs D
+
+@if (!S.HasData)
+{
+    <Welcome />
+}
+else if (S.Editing != null)
+{
+    <WorkoutView @key="S.Editing" Workout="S.Editing" Live="false" />
+}
+else if (S.WorkoutOpen && S.Active != null)
+{
+    <WorkoutView @key="S.Active" Workout="S.Active" Live="true" />
+}
+else if (S.EditingRoutine != null)
+{
+    <RoutineEditor @key="S.EditingRoutine" Routine="S.EditingRoutine" />
+}
+else
+{
+    <div class="shell @(S.Active != null ? "has-resume" : "")">
+        <header class="topbar">
+            @if (S.Tab == Tab.Settings)
+            {
+                <button class="icon-btn" @onclick="() => Go(_lastTab)" aria-label="Back"><Icon Name="chevron-left" Size="26" /></button>
+            }
+            <h1 class="topbar-title">@Title</h1>
+            <div class="topbar-actions">
+                <button class="icon-btn save-btn" @onclick="Save" aria-label="Save to Files">
+                    <Icon Name="save" />
+                    @if (S.Meta.Dirty)
+                    {
+                        <span class="dirty-dot"></span>
+                    }
+                </button>
+                @if (S.Tab != Tab.Settings)
+                {
+                    <button class="icon-btn" @onclick="() => Go(Tab.Settings)" aria-label="Settings"><Icon Name="gear" /></button>
+                }
+            </div>
+        </header>
+
+        <main class="content">
+            @switch (S.Tab)
+            {
+                case Tab.Routines: <RoutinesTab /> break;
+                case Tab.Exercises: <ExercisesTab /> break;
+                case Tab.Calendar: <CalendarTab /> break;
+                case Tab.Stats: <StatsTab /> break;
+                case Tab.Settings: <SettingsTab /> break;
+            }
+        </main>
+
+        @if (S.Active != null)
+        {
+            <button class="resume-bar" @onclick="S.OpenWorkout">
+                <span class="resume-dot"></span>
+                <span class="resume-text">
+                    <span class="resume-title">@(S.Active.Name ?? "Lift") in progress</span>
+                    <span class="resume-sub">@DoneSets of @TotalSets sets done</span>
+                </span>
+                <RestChip />
+                <span class="resume-go">Resume <Icon Name="chevron-right" Size="18" /></span>
+            </button>
+        }
+
+        <nav class="bottom-nav">
+            <button class="nav-btn @(S.Tab == Tab.Routines ? "active" : "")" @onclick="() => Go(Tab.Routines)">
+                <Icon Name="list" /><span>Routines</span>
+            </button>
+            <button class="nav-btn @(S.Tab == Tab.Exercises ? "active" : "")" @onclick="() => Go(Tab.Exercises)">
+                <Icon Name="dumbbell" /><span>Exercises</span>
+            </button>
+            <button class="nav-btn nav-lift" @onclick="StartLift">
+                <span class="nav-lift-circle"><Icon Name="@(S.Active != null ? "play" : "plus")" Size="26" Stroke="2.6" /></span>
+                <span>@(S.Active != null ? "Resume" : "New Lift")</span>
+            </button>
+            <button class="nav-btn @(S.Tab == Tab.Calendar ? "active" : "")" @onclick="() => Go(Tab.Calendar)">
+                <Icon Name="calendar" /><span>Calendar</span>
+            </button>
+            <button class="nav-btn @(S.Tab == Tab.Stats ? "active" : "")" @onclick="() => Go(Tab.Stats)">
+                <Icon Name="chart" /><span>Stats</span>
+            </button>
+        </nav>
+    </div>
+}
+
+<DialogHost />
+
+@if (S.ToastText != null)
+{
+    <div class="toast" @key="S.ToastText">@S.ToastText</div>
+}
+
+@code {
+    private Tab _lastTab = Tab.Routines;
+
+    private string Title => S.Tab switch
+    {
+        Tab.Routines => "Routines",
+        Tab.Exercises => "Exercises",
+        Tab.Calendar => "Calendar",
+        Tab.Stats => "Stats",
+        Tab.Settings => "Settings",
+        _ => "LiftX"
+    };
+
+    private int DoneSets => S.Active?.Exercises.Sum(e => e.Sets.Count(s => s.Done)) ?? 0;
+    private int TotalSets => S.Active?.Exercises.Sum(e => e.Sets.Count) ?? 0;
+
+    private void Go(Tab tab)
+    {
+        if (tab == Tab.Settings && S.Tab != Tab.Settings) _lastTab = S.Tab;
+        if (S.Tab == tab) { S.ScrollTop(); return; }
+        S.Tab = tab;
+        S.Notify();
+        S.ScrollTop();
+    }
+
+    // Straight from the tap so iOS allows the share sheet
+    private Task Save() => S.ExportAsync();
+
+    private void StartLift()
+    {
+        if (S.Active != null) S.OpenWorkout();
+        else S.StartWorkout(null);
+        S.ScrollTop();
+    }
+}

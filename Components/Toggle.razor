@@ -1,0 +1,14 @@
+<button type="button" class="toggle @(Value ? "on" : "")" role="switch" aria-checked="@(Value ? "true" : "false")" @onclick="Flip">
+    <span class="toggle-knob"></span>
+</button>
+
+@code {
+    [Parameter] public bool Value { get; set; }
+    [Parameter] public EventCallback<bool> ValueChanged { get; set; }
+
+    private async Task Flip()
+    {
+        Value = !Value;
+        await ValueChanged.InvokeAsync(Value);
+    }
+}
