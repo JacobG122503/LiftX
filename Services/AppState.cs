@@ -3,7 +3,7 @@ using Microsoft.JSInterop;
 
 namespace LiftX.Services;
 
-public enum Tab { Routines, Exercises, Calendar, Stats, Settings }
+public enum Tab { Lift, Exercises, Calendar, Stats, Settings }
 
 /// <summary>
 /// Everything the app knows lives here. Data is mirrored to localStorage on every change
@@ -33,7 +33,7 @@ public class AppState
     public int Version { get; private set; }
 
     // ── UI state ─────────────────────────────────────────────────────────
-    public Tab Tab { get; set; } = Tab.Routines;
+    public Tab Tab { get; set; } = Tab.Lift;
     public bool WorkoutOpen { get; private set; }
     public Workout? Editing { get; private set; }
     public bool EditingIsNew { get; private set; }
@@ -42,8 +42,29 @@ public class AppState
     public string? ToastText { get; private set; }
     private int _toastSeq;
 
+    /// <summary>Re-opened from Settings (first-run display is driven by Settings.SeenSaveIntro).</summary>
+    public bool ShowSaveIntro { get; private set; }
+
     public event Action? Changed;
     public void Notify() => Changed?.Invoke();
+
+    public void OpenSaveIntro()
+    {
+        ShowSaveIntro = true;
+        Notify();
+    }
+
+    public void CloseSaveIntro()
+    {
+        ShowSaveIntro = false;
+        if (!Data.Settings.SeenSaveIntro)
+        {
+            Data.Settings.SeenSaveIntro = true;
+            // Not "dirty": this alone isn't worth nagging you to re-save; it rides along with your next save
+            SaveData(markDirty: false);
+        }
+        Notify();
+    }
 
     // ── Storage ──────────────────────────────────────────────────────────
 
@@ -189,7 +210,7 @@ public class AppState
         WorkoutOpen = false;
         Editing = null;
         EditingRoutine = null;
-        Tab = Tab.Routines;
+        Tab = Tab.Lift;
         Version++;
         RebuildIndexes();
         UpdateWakeLock();

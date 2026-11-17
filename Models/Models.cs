@@ -34,6 +34,8 @@ public class AppSettings
     public bool TimerSound { get; set; } = true;
     public bool KeepAwake { get; set; } = true;
     public string FileName { get; set; } = Defaults.FileName;
+    /// <summary>The "how saving works" popup has been read and closed.</summary>
+    public bool SeenSaveIntro { get; set; }
 }
 
 public static class Defaults

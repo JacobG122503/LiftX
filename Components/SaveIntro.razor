@@ -1,0 +1,50 @@
+@inject AppState S
+
+<div class="overlay">
+    <div class="dialog intro">
+        <div class="intro-icon"><Icon Name="save" Size="30" Stroke="2.4" /></div>
+        <div class="dialog-title intro-title">How saving works</div>
+
+        <div class="intro-steps">
+            <div class="intro-step">
+                <span class="intro-num">1</span>
+                <div>
+                    <strong>LiftX keeps a copy on this phone as you go,</strong> so closing the app mid-lift is fine.
+                    But <strong>iOS can clear that copy</strong> every so often (low storage, clearing Safari data,
+                    deleting the app), so don't rely on it alone.
+                </div>
+            </div>
+            <div class="intro-step">
+                <span class="intro-num">2</span>
+                <div>
+                    <strong>Your real save is a file in Files:</strong> <code>@S.Data.Settings.FileName</code>.
+                    Tap <strong>Finish &amp; Save to Files</strong> at the end of every lift, or the
+                    <span class="intro-inline"><Icon Name="save" Size="16" /></span> button at the top any time.
+                    In the share sheet pick <strong>Save to Files</strong>, choose the same folder as last time and tap <strong>Replace</strong>.
+                </div>
+            </div>
+            <div class="intro-step">
+                <span class="intro-num">3</span>
+                <div>
+                    <span class="dirty-badge dirty-badge--inline">!</span>
+                    <strong>means you have changes</strong> that aren't in your Files copy yet. Save to make it go away.
+                </div>
+            </div>
+            <div class="intro-step">
+                <span class="intro-num">4</span>
+                <div>
+                    <strong>New phone, deleted the app or cleared Safari data?</strong>
+                    Open LiftX and import that file. Everything comes back: lifts, routines, exercises and your theme.
+                </div>
+            </div>
+        </div>
+
+        <div class="intro-callout">
+            <Icon Name="info" Size="20" />
+            <span><strong>Save to Files after every lift.</strong> Anything not in your file can be lost if iOS clears the app's data.</span>
+        </div>
+
+        <button class="btn-3d btn-wide" @onclick="S.CloseSaveIntro">Got it</button>
+        <div class="row-sub intro-foot">You can see this again any time in Settings.</div>
+    </div>
+</div>

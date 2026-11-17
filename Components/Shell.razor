@@ -31,7 +31,7 @@ else
                     <Icon Name="save" />
                     @if (S.Meta.Dirty)
                     {
-                        <span class="dirty-dot"></span>
+                        <span class="dirty-badge" aria-label="Unsaved changes">!</span>
                     }
                 </button>
                 @if (S.Tab != Tab.Settings)
@@ -44,7 +44,7 @@ else
         <main class="content">
             @switch (S.Tab)
             {
-                case Tab.Routines: <RoutinesTab /> break;
+                case Tab.Lift: <RoutinesTab /> break;
                 case Tab.Exercises: <ExercisesTab /> break;
                 case Tab.Calendar: <CalendarTab /> break;
                 case Tab.Stats: <StatsTab /> break;
@@ -66,15 +66,11 @@ else
         }
 
         <nav class="bottom-nav">
-            <button class="nav-btn @(S.Tab == Tab.Routines ? "active" : "")" @onclick="() => Go(Tab.Routines)">
-                <Icon Name="list" /><span>Routines</span>
+            <button class="nav-btn @(S.Tab == Tab.Lift ? "active" : "")" @onclick="() => Go(Tab.Lift)">
+                <Icon Name="dumbbell" /><span>Lift</span>
             </button>
             <button class="nav-btn @(S.Tab == Tab.Exercises ? "active" : "")" @onclick="() => Go(Tab.Exercises)">
-                <Icon Name="dumbbell" /><span>Exercises</span>
-            </button>
-            <button class="nav-btn nav-lift" @onclick="StartLift">
-                <span class="nav-lift-circle"><Icon Name="@(S.Active != null ? "play" : "plus")" Size="26" Stroke="2.6" /></span>
-                <span>@(S.Active != null ? "Resume" : "New Lift")</span>
+                <Icon Name="list" /><span>Exercises</span>
             </button>
             <button class="nav-btn @(S.Tab == Tab.Calendar ? "active" : "")" @onclick="() => Go(Tab.Calendar)">
                 <Icon Name="calendar" /><span>Calendar</span>
@@ -86,6 +82,11 @@ else
     </div>
 }
 
+@if (S.HasData && (!S.Data.Settings.SeenSaveIntro || S.ShowSaveIntro))
+{
+    <SaveIntro />
+}
+
 <DialogHost />
 
 @if (S.ToastText != null)
@@ -94,11 +95,11 @@ else
 }
 
 @code {
-    private Tab _lastTab = Tab.Routines;
+    private Tab _lastTab = Tab.Lift;
 
     private string Title => S.Tab switch
     {
-        Tab.Routines => "Routines",
+        Tab.Lift => "Lift",
         Tab.Exercises => "Exercises",
         Tab.Calendar => "Calendar",
         Tab.Stats => "Stats",
@@ -121,10 +122,4 @@ else
     // Straight from the tap so iOS allows the share sheet
     private Task Save() => S.ExportAsync();
 
-    private void StartLift()
-    {
-        if (S.Active != null) S.OpenWorkout();
-        else S.StartWorkout(null);
-        S.ScrollTop();
-    }
 }

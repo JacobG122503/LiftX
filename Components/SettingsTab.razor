@@ -73,12 +73,15 @@
 </section>
 
 <section class="settings-section">
-    <div class="settings-title">Save File</div>
+    <div class="settings-title settings-title--row">
+        <span>Save File</span>
+        <button class="info-btn" @onclick="S.OpenSaveIntro"><Icon Name="info" Size="18" /> How saving works</button>
+    </div>
     <div class="card settings-card">
         <div class="save-status @(S.Meta.Dirty ? "dirty" : "")">
             @if (S.Meta.Dirty)
             {
-                <span class="dirty-dot static"></span>
+                <span class="dirty-badge dirty-badge--inline">!</span>
                 <span>You have changes that aren't in your Files copy yet.</span>
             }
             else if (S.Meta.LastExportUtc is { } t)
@@ -96,7 +99,7 @@
         <button class="btn-3d btn-wide" @onclick="Save"><Icon Name="save" Stroke="2.6" /> Save to Files</button>
         <div class="row-sub help-text">
             Opens the share sheet. Pick <strong>Save to Files</strong>, choose the same folder as last time and tap <strong>Replace</strong>.
-            Everything is also kept on this phone automatically, so this is your backup and your way to move data.
+            The copy on this phone can be cleared by iOS every so often, so save after every lift.
         </div>
 
         <label class="field-label" for="file-name">File name</label>

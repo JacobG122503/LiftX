@@ -168,17 +168,24 @@ strong { font-weight: 700; }
 .icon-btn.danger-soft { color: var(--muted); }
 .icon-btn.danger-soft:active { color: var(--danger); }
 
-.dirty-dot {
+.dirty-badge {
     position: absolute;
-    top: 9px;
-    right: 9px;
-    width: 9px;
-    height: 9px;
+    top: 3px;
+    right: 1px;
+    width: 19px;
+    height: 19px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--danger);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 19px;
+    text-align: center;
     box-shadow: 0 0 0 2px var(--bg);
+    animation: badge-pop 0.25s ease-out;
 }
-.dirty-dot.static { position: static; display: inline-block; flex-shrink: 0; box-shadow: none; }
+.dirty-badge--inline { position: static; display: inline-block; flex-shrink: 0; box-shadow: none; vertical-align: -3px; margin-right: 4px; }
+@keyframes badge-pop { from { transform: scale(0.4); } }
 
 .text-btn {
     padding: 10px 8px;
@@ -204,7 +211,7 @@ strong { font-weight: 700; }
     bottom: 0;
     z-index: 40;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     align-items: end;
     height: calc(var(--nav-h) + var(--safe-bottom));
     padding: 0 4px var(--safe-bottom);
@@ -227,21 +234,6 @@ strong { font-weight: 700; }
 }
 .nav-btn.active { color: var(--accent); }
 .nav-btn.active .icon { stroke-width: 2.4; }
-.nav-lift { color: var(--text-2); justify-content: flex-end; padding-bottom: 7px; }
-.nav-lift-circle {
-    width: 52px;
-    height: 52px;
-    border-radius: 18px;
-    background: var(--accent);
-    color: var(--on-accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 0 var(--accent-dark), 0 8px 20px rgba(0, 0, 0, 0.35);
-    margin-top: -18px;
-    transition: transform 0.08s;
-}
-.nav-lift:active .nav-lift-circle { transform: translateY(3px); box-shadow: 0 1px 0 var(--accent-dark); }
 
 .resume-bar {
     position: fixed;
@@ -290,7 +282,7 @@ strong { font-weight: 700; }
     left: 50%;
     top: calc(var(--safe-top) + 66px);
     transform: translateX(-50%);
-    z-index: 300;
+    z-index: 190; /* above pages and charts, below popups */
     max-width: calc(100vw - 32px);
     padding: 12px 18px;
     border-radius: 999px;
@@ -1166,6 +1158,69 @@ select.input {
 .save-status { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--accent); }
 .save-status.dirty { color: var(--text); }
 .help-text { line-height: 1.45; margin-top: -4px; }
+.settings-title--row { display: flex; align-items: center; justify-content: space-between; }
+.info-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+/* "How saving works" popup */
+.intro { max-width: 460px; gap: 14px; }
+.intro-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    background: var(--accent);
+    color: var(--on-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    box-shadow: 0 4px 0 var(--accent-dark);
+}
+.intro-title { text-align: center; font-size: 1.4rem; }
+.intro-steps { display: flex; flex-direction: column; gap: 12px; }
+.intro-step { display: flex; gap: 12px; font-size: 0.94rem; color: var(--text-2); line-height: 1.45; }
+.intro-step strong { color: var(--text); }
+.intro-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--accent-bg-2);
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+.intro-inline { display: inline-flex; vertical-align: -3px; color: var(--accent); }
+.intro-foot { text-align: center; margin-top: -4px; }
+.intro-callout {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    font-size: 0.92rem;
+    line-height: 1.4;
+    color: var(--text-2);
+}
+.intro-callout strong { color: var(--text); }
+.intro-callout .icon { color: var(--danger); margin-top: 1px; }
 .about { gap: 6px; }
 
 /* ═════════════════════════════════════════════════════════════════════════
