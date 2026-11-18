@@ -19,8 +19,13 @@ First run: import your Liftoff export (`liftoff_workout_data.csv`) or a LiftX sa
 ## Develop
 
 ```sh
-dotnet watch        # http://localhost:5000
+dotnet watch                                  # http://localhost:5000, reloads when you save
+dotnet watch --urls http://0.0.0.0:5080       # also reachable from your iPhone on the same Wi-Fi
 ```
+
+On the Mac, view it phone-sized with Safari's Responsive Design Mode (⌥⌘R) or Chrome's device toolbar (⌘⇧M).
+On the iPhone, open `http://<your-mac-ip>:5080` in Safari. It's plain http, so Save to Files falls back
+to a download and keep-awake is off there; the real (https) GitHub Pages site has both.
 
 Pushing to `main` deploys to GitHub Pages (`.github/workflows/deploy.yml`).
 One-time setup: repo **Settings → Pages → Source: GitHub Actions**.

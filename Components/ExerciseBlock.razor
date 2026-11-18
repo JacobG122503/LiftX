@@ -8,6 +8,7 @@
     var prev = S.PreviousSets(Exercise.Name, Live ? DateTime.MaxValue : Workout.Date, Workout.Id);
     var def = S.FindDef(Exercise.Name);
     var gridClass = Live ? "" : "no-check";
+    var prSets = Live ? PrSets(type, Best()) : new HashSet<SetEntry>();
 }
 
 <div class="ex-card">
@@ -51,7 +52,9 @@
             var idx = i;
             var set = Exercise.Sets[i];
             var ph = Placeholder(idx, prev);
-            <div class="set-grid set-row @gridClass @(set.Done ? "done" : "")" @key="set">
+            var pr = prSets.Contains(set);
+            var just = _justDone.Contains(set);
+            <div class="set-grid set-row @gridClass @(set.Done ? "done" : "") @(pr ? "pr" : "") @(just ? "just-done" : "")" @key="set">
                 <button class="set-num" @onclick="() => SetMenu(idx)">@(idx + 1)</button>
 
                 @switch (type)
@@ -86,6 +89,15 @@
                 {
                     <button class="check @(set.Done ? "on" : "")" @onclick="() => Toggle(idx, prev, type)" aria-label="Complete set">
                         <Icon Name="check" Size="22" Stroke="3" />
+                        @if (just && pr)
+                        {
+                            <span class="pr-burst" aria-hidden="true">
+                                @for (int k = 0; k < 10; k++)
+                                {
+                                    <i style="--a:@(k * 36)deg; --d:@(k % 2 == 0 ? 36 : 26)px"></i>
+                                }
+                            </span>
+                        }
                     </button>
                 }
             </div>
@@ -109,6 +121,75 @@
 
     private bool _collapsed;
     private bool _stats;
+
+    // Sets checked in the last moment: they get the fill / PR animation (not replayed on re-render or resume)
+    private readonly HashSet<SetEntry> _justDone = new();
+
+    // All-time bests for this exercise from finished lifts (cached until the data changes)
+    private record Bests(double Est1RM, double Heaviest, int Reps, int Seconds);
+    private Bests? _best;
+    private int _bestVersion = -1;
+
+    private Bests? Best()
+    {
+        if (_bestVersion == S.Version) return _best;
+        _bestVersion = S.Version;
+        var sets = S.HistoryOf(Exercise.Name).Where(h => h.W.Id != Workout.Id).SelectMany(h => h.E.Sets).ToList();
+        _best = sets.Count == 0 ? null : new Bests(
+            sets.Where(s => s.Weight > 0 && s.Reps > 0).Select(s => ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value)).DefaultIfEmpty(0).Max(),
+            sets.Where(s => s.Reps > 0).Select(s => s.Weight ?? 0).DefaultIfEmpty(0).Max(),
+            sets.Select(s => s.Reps ?? 0).DefaultIfEmpty(0).Max(),
+            sets.Select(s => s.Seconds ?? 0).DefaultIfEmpty(0).Max());
+        return _best;
+    }
+
+    /// <summary>
+    /// Which checked sets are PRs. Goes through them in the order you checked them: a set is gold only if it
+    /// beats your all-time best AND every set of this exercise you checked before it in this lift.
+    /// Never gold the first time you ever do an exercise.
+    /// </summary>
+    private HashSet<SetEntry> PrSets(ExerciseType type, Bests? best)
+    {
+        var result = new HashSet<SetEntry>();
+        if (best == null) return result;
+        double est = best.Est1RM, heaviest = best.Heaviest;
+        int reps = best.Reps, secs = best.Seconds;
+        var checkedSets = Workout.Exercises
+            .Where(e => AppState.SameName(e.Name, Exercise.Name))
+            .SelectMany(e => e.Sets)
+            .Where(s => s.Done)
+            .OrderBy(s => s.DoneOrder ?? 0);
+
+        foreach (var s in checkedSets)
+        {
+            switch (type)
+            {
+                case ExerciseType.Weight when s.Weight > 0 && s.Reps > 0:
+                    var e1 = ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value);
+                    if (s.Weight > heaviest || e1 > est + 0.05) result.Add(s);
+                    heaviest = Math.Max(heaviest, s.Weight.Value);
+                    est = Math.Max(est, e1);
+                    break;
+                case ExerciseType.Reps when best.Reps > 0:
+                    if (s.Reps > reps) result.Add(s);
+                    reps = Math.Max(reps, s.Reps ?? 0);
+                    break;
+                case ExerciseType.Duration when best.Seconds > 0:
+                    if (s.Seconds > secs) result.Add(s);
+                    secs = Math.Max(secs, s.Seconds ?? 0);
+                    break;
+            }
+        }
+        return result;
+    }
+
+    private async Task PlayCheckAnimation(SetEntry set)
+    {
+        _justDone.Add(set);
+        await Task.Delay(2200);
+        _justDone.Remove(set);
+        StateHasChanged();
+    }
 
     private Task Changed() => OnChanged.InvokeAsync();
 
@@ -136,6 +217,14 @@
         if (set.Done)
         {
             set.Done = false;
+            set.DoneOrder = null;
+            _justDone.Remove(set);
+            // Numbers that just came from the grey values go back to grey
+            var grey = Placeholder(idx, prev);
+            if (grey?.Weight != null ? set.Weight == grey.Weight : set.Weight == 0) set.Weight = null;
+            if (grey?.Reps != null && set.Reps == grey.Reps) set.Reps = null;
+            if (grey?.Distance != null && set.Distance == grey.Distance) set.Distance = null;
+            if (grey?.Seconds != null && set.Seconds == grey.Seconds) set.Seconds = null;
             await Changed();
             return;
         }
@@ -178,6 +267,8 @@
         }
 
         set.Done = true;
+        set.DoneOrder = Workout.Exercises.SelectMany(e => e.Sets).Max(s => s.DoneOrder ?? 0) + 1;
+        _ = PlayCheckAnimation(set);
         S.UnlockAudio(); // lets the end-of-rest beep play later (iOS needs a tap first)
         if (S.Data.Settings.RestTimerEnabled)
             Timer.Start(S.RestFor(Exercise.Name));

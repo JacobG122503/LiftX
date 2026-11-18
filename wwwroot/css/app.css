@@ -400,7 +400,7 @@ select.input {
     padding-right: 38px;
 }
 .input-big { font-size: 1.3rem; font-weight: 700; padding: 14px 16px; }
-.input::placeholder, .set-input::placeholder, .wk-notes::placeholder { color: var(--muted); }
+.input::placeholder, .wk-notes::placeholder { color: var(--muted); }
 .field-label {
     display: block;
     font-size: 0.78rem;
@@ -933,8 +933,7 @@ select.input {
     text-align: center;
 }
 .set-head > div:first-child { text-align: center; }
-.set-row { padding-top: 5px; padding-bottom: 5px; transition: background 0.15s; }
-.set-row.done { background: var(--accent-bg); }
+.set-row { padding-top: 5px; padding-bottom: 5px; position: relative; isolation: isolate; }
 .set-num, .set-input {
     height: 48px;
     border-radius: var(--radius-sm);
@@ -957,9 +956,10 @@ select.input {
     padding: 0 4px;
 }
 .set-input:focus { border-color: var(--accent); background: var(--surface-3); }
-.set-input::placeholder { opacity: 0.7; font-weight: 600; }
+/* Last time's numbers look the same as typed ones; the box is still empty, so typing just replaces them */
+.set-input::placeholder { color: var(--text); opacity: 1; font-weight: 700; }
 .set-input--time { font-size: 1.1rem; }
-.set-row.done .set-num, .set-row.done .set-input { background: color-mix(in srgb, var(--accent) 12%, var(--surface-2)); }
+
 .check {
     width: 44px;
     height: 44px;
@@ -1497,3 +1497,148 @@ details[open] .more-stats-toggle::before { transform: rotate(90deg); }
     border: 2px solid transparent;
 }
 .yes-no-btn.on { background: var(--accent-bg-2); color: var(--text); border-color: var(--accent); }
+
+
+/* ═══ Checking a set ══════════════════════════════════════════════════════
+   Done: the accent sweeps across the row left → right, the boxes tint in the
+   same order, and the check pops.
+   PR: same sweep in gold, then sparks + a ring burst from the check and a
+   bright flash. The row stays gold with a slow shine for the rest of the lift. */
+:root {
+    --gold-1: #FFF1B8;
+    --gold-2: #F7C948;
+    --gold-3: #D99A1E;
+    --gold-4: #8A5A00;
+    --gold-text: #FFDB7A;
+}
+[data-theme="light"] { --gold-text: #8A5A00; }
+
+.set-row::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--accent-bg);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.2s ease-in;
+    pointer-events: none;
+}
+.set-row.done::before { transform: scaleX(1); }
+.set-row.just-done::before { animation: row-sweep 0.5s cubic-bezier(0.45, 0.05, 0.35, 1) both; }
+.set-row.pr.just-done::before { animation: row-sweep 1s cubic-bezier(0.45, 0.05, 0.35, 1) both; }
+/* gold boxes tint as the slower fill passes them */
+.set-row.pr.just-done > :nth-child(1) { transition-delay: 0.08s; }
+.set-row.pr.just-done > :nth-child(2) { transition-delay: 0.26s; }
+.set-row.pr.just-done > :nth-child(3) { transition-delay: 0.4s; }
+@keyframes row-sweep {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+.set-row .set-num,
+.set-row .set-input { transition: background-color 0.3s ease, color 0.3s ease; }
+.set-row.done .set-num,
+.set-row.done .set-input { background-color: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); }
+/* follow the sweep: each box tints as the fill passes it */
+.set-row.just-done > :nth-child(1) { transition-delay: 0.04s; }
+.set-row.just-done > :nth-child(2) { transition-delay: 0.13s; }
+.set-row.just-done > :nth-child(3) { transition-delay: 0.2s; }
+/* the button itself turns on instantly (like gold), then pops: no grey button under the ring */
+.set-row.just-done .check { transition: none; }
+
+.set-row.just-done .check { animation: check-pop 0.55s cubic-bezier(0.3, 1.8, 0.5, 1) 0.31s both; }
+@keyframes check-pop {
+    0% { transform: scale(1) rotate(0); }
+    40% { transform: scale(1.25) rotate(-8deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+.check { position: relative; }
+
+/* ── PR: gold ── */
+.set-row.pr::before {
+    background: linear-gradient(90deg, rgba(247, 201, 72, 0.20), rgba(255, 223, 128, 0.34) 55%, rgba(247, 201, 72, 0.22));
+}
+.set-row.pr .set-num,
+.set-row.pr .set-input {
+    background-color: rgba(247, 201, 72, 0.16);
+    color: var(--gold-text);
+}
+.set-row.pr .check {
+    background: linear-gradient(135deg, var(--gold-1) 0%, var(--gold-2) 45%, var(--gold-3) 100%);
+    color: #3A2500;
+    box-shadow: 0 3px 0 var(--gold-4), 0 0 16px rgba(247, 201, 72, 0.45);
+}
+/* the shine that keeps sweeping over a PR row */
+.set-row.pr::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 244, 205, 0.32) 50%, transparent 62%);
+    background-size: 260% 100%;
+    background-repeat: no-repeat;
+    mix-blend-mode: screen;
+    animation: gold-shine 5.6s ease-in-out 1.4s infinite both;
+}
+@keyframes gold-shine {
+    0% { background-position: 130% 0; }
+    28%, 100% { background-position: -30% 0; }
+}
+/* the moment it happens: a bright flash runs across, then the shine settles in */
+.set-row.pr.just-done::after {
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 248, 220, 0.75) 50%, transparent 70%);
+    background-size: 260% 100%;
+    background-repeat: no-repeat;
+    animation: gold-flash 0.8s ease-out 0.62s both;
+}
+@keyframes gold-flash {
+    from { background-position: 130% 0; opacity: 1; }
+    to { background-position: -30% 0; opacity: 0.6; }
+}
+.set-row.pr.just-done .check { animation: pr-pop 0.65s cubic-bezier(0.3, 1.8, 0.5, 1) 0.6s both; }
+@keyframes pr-pop {
+    0% { transform: scale(1) rotate(0); }
+    40% { transform: scale(1.32) rotate(-8deg); box-shadow: 0 3px 0 var(--gold-4), 0 0 28px rgba(247, 201, 72, 0.9); }
+    100% { transform: scale(1) rotate(0); }
+}
+
+/* sparks + ring bursting out of the check */
+.pr-burst { position: absolute; inset: 0; pointer-events: none; }
+.pr-burst::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 3px solid var(--gold-2);
+    opacity: 0;
+    animation: pr-ring 0.7s ease-out 0.62s forwards;
+}
+@keyframes pr-ring {
+    from { transform: scale(0.8); opacity: 1; }
+    to { transform: scale(2.1); opacity: 0; }
+}
+.pr-burst i {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: var(--gold-1);
+    box-shadow: 0 0 6px 1px var(--gold-2);
+    opacity: 0;
+    animation: pr-spark 0.75s cubic-bezier(0.2, 0.7, 0.3, 1) 0.64s forwards;
+}
+.pr-burst i:nth-child(even) { width: 4px; height: 4px; margin: -2px 0 0 -2px; }
+@keyframes pr-spark {
+    0% { transform: rotate(var(--a)) translateY(0) scale(1); opacity: 1; }
+    100% { transform: rotate(var(--a)) translateY(calc(var(--d) * -1)) scale(0.3); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .set-row.just-done::before, .set-row.just-done .check, .set-row.pr::after,
+    .set-row.pr.just-done::after, .pr-burst::before, .pr-burst i { animation: none !important; }
+}

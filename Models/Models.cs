@@ -103,10 +103,14 @@ public class SetEntry
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool Done { get; set; }
 
+    /// <summary>Order sets were checked in during a lift (1, 2, 3…). Decides which set is the PR.</summary>
+    [JsonPropertyName("n")]
+    public int? DoneOrder { get; set; }
+
     [JsonIgnore]
     public bool HasValues => Weight != null || Reps != null || Distance != null || Seconds != null;
 
-    public SetEntry Clone() => new() { Weight = Weight, Reps = Reps, Distance = Distance, Seconds = Seconds, Done = Done };
+    public SetEntry Clone() => new() { Weight = Weight, Reps = Reps, Distance = Distance, Seconds = Seconds, Done = Done, DoneOrder = DoneOrder };
     /// <summary>Copy of just the numbers (no "done" flag).</summary>
     public SetEntry Values() => new() { Weight = Weight, Reps = Reps, Distance = Distance, Seconds = Seconds };
 }
