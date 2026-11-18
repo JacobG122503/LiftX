@@ -47,32 +47,52 @@ public class KeypadState
         Changed?.Invoke();
     }
 
-    public void Key(char c)
+    public async Task Key(char c)
     {
         if (Set == null) return;
         if (c == '.' && !AllowsDecimal) return;
         var b = Fresh ? "" : Buffer;
         Fresh = false;
-        if (c == '.' && b.Contains('.')) { Buffer = b; Changed?.Invoke(); return; }
-        if (b.Replace(".", "").Length >= (Field == SetField.Time ? 6 : 5)) { Buffer = b; Changed?.Invoke(); return; }
-        if (c == '.' && b.Length == 0) b = "0";
-        if (b == "0" && c != '.') b = ""; // no leading zeros
-        Buffer = b + c;
-        Changed?.Invoke();
+        if (c == '.' && b.Contains('.')) c = '\0';
+        else if (b.Replace(".", "").Length >= (Field == SetField.Time ? 6 : 5)) c = '\0'; // max length
+        if (c != '\0')
+        {
+            if (c == '.' && b.Length == 0) b = "0";
+            if (b == "0" && c != '.') b = ""; // no leading zeros
+            b += c;
+        }
+        Buffer = b;
+        await SaveTyped();
     }
 
-    public void Backspace()
+    public async Task Backspace()
     {
         if (Set == null) return;
         if (Fresh) { Buffer = ""; Fresh = false; }
         else if (Buffer.Length > 0) Buffer = Buffer[..^1];
-        Changed?.Invoke();
+        await SaveTyped();
     }
 
-    /// <summary>Writes what was typed into the set. Nothing typed = no change.</summary>
+    /// <summary>Every key press is written to the set and saved right away (blank = 0).</summary>
+    private async Task SaveTyped()
+    {
+        Apply();
+        Changed?.Invoke();
+        if (_onCommit != null) await _onCommit();
+    }
+
+    /// <summary>Makes sure what was typed is in the set. Nothing typed = no change.</summary>
     public async Task Commit()
     {
         if (Set == null || Fresh) return;
+        Apply();
+        Fresh = true;
+        if (_onCommit != null) await _onCommit();
+    }
+
+    private void Apply()
+    {
+        if (Set == null) return;
         switch (Field)
         {
             case SetField.Weight:
@@ -88,8 +108,6 @@ public class KeypadState
                 Set.Seconds = ExerciseInfo.ParseTime(Buffer) ?? 0;
                 break;
         }
-        Fresh = true;
-        if (_onCommit != null) await _onCommit();
     }
 
     public async Task Next()

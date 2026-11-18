@@ -286,6 +286,7 @@ strong { font-weight: 700; }
     top: calc(var(--safe-top) + 66px);
     transform: translateX(-50%);
     z-index: 190; /* above pages and charts, below popups */
+    pointer-events: none; /* never block taps on what's underneath */
     max-width: calc(100vw - 32px);
     padding: 12px 18px;
     border-radius: 999px;
@@ -1658,6 +1659,8 @@ details[open] .more-stats-toggle::before { transform: rotate(90deg); }
     animation: caret-blink 1s steps(1) infinite;
 }
 @keyframes caret-blink { 50% { opacity: 0; } }
+/* iOS only sends taps from "clickable" areas; this makes tap-anywhere-to-close work on iPhone */
+.wk.keypad-open { cursor: pointer; }
 .wk.keypad-open .wk-bottom-space { height: calc(240px + var(--safe-bottom)); }
 
 .numpad {
