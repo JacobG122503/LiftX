@@ -447,12 +447,8 @@ public class AppState
             var best = doneSets.MaxBy(s => ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value))!;
             var bestEst = ExerciseInfo.Est1RM(best.Weight!.Value, best.Reps!.Value);
             var pastEst = past.Max(s => ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value));
-            var pastHeaviest = past.Max(s => s.Weight!.Value);
-            var heaviest = doneSets.Max(s => s.Weight!.Value);
-            if (heaviest > pastHeaviest)
-                prs.Add($"{e.Name}: heaviest ever, {ExerciseInfo.Num(heaviest)} lbs");
-            else if (bestEst > pastEst + 0.05)
-                prs.Add($"{e.Name}: best set, {ExerciseInfo.Num(best.Weight)} × {best.Reps} (est. 1RM {bestEst:0})");
+            if (bestEst > pastEst + 0.05)
+                prs.Add($"{e.Name}: {ExerciseInfo.Num(best.Weight)} × {best.Reps}");
         }
 
         var routine = w.RoutineId == null ? null : Data.Routines.FirstOrDefault(r => r.Id == w.RoutineId);

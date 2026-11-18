@@ -157,7 +157,7 @@
     private readonly HashSet<SetEntry> _justDone = new();
 
     // All-time bests for this exercise from finished lifts (cached until the data changes)
-    private record Bests(double Est1RM, double Heaviest, int Reps, int Seconds);
+    private record Bests(double Est1RM, int Reps, int Seconds);
     private Bests? _best;
     private int _bestVersion = -1;
 
@@ -168,7 +168,6 @@
         var sets = S.HistoryOf(Exercise.Name).Where(h => h.W.Id != Workout.Id).SelectMany(h => h.E.Sets).ToList();
         _best = sets.Count == 0 ? null : new Bests(
             sets.Where(s => s.Weight > 0 && s.Reps > 0).Select(s => ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value)).DefaultIfEmpty(0).Max(),
-            sets.Where(s => s.Reps > 0).Select(s => s.Weight ?? 0).DefaultIfEmpty(0).Max(),
             sets.Select(s => s.Reps ?? 0).DefaultIfEmpty(0).Max(),
             sets.Select(s => s.Seconds ?? 0).DefaultIfEmpty(0).Max());
         return _best;
@@ -176,14 +175,14 @@
 
     /// <summary>
     /// Which checked sets are PRs. Goes through them in the order you checked them: a set is gold only if it
-    /// beats your all-time best AND every set of this exercise you checked before it in this lift.
+    /// beats your all-time best (weight lifts: estimated 1-rep max) AND every set of this exercise you checked before it in this lift.
     /// Never gold the first time you ever do an exercise.
     /// </summary>
     private HashSet<SetEntry> PrSets(ExerciseType type, Bests? best)
     {
         var result = new HashSet<SetEntry>();
         if (best == null) return result;
-        double est = best.Est1RM, heaviest = best.Heaviest;
+        double est = best.Est1RM;
         int reps = best.Reps, secs = best.Seconds;
         var checkedSets = Workout.Exercises
             .Where(e => AppState.SameName(e.Name, Exercise.Name))
@@ -197,8 +196,7 @@
             {
                 case ExerciseType.Weight when s.Weight > 0 && s.Reps > 0:
                     var e1 = ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value);
-                    if (s.Weight > heaviest || e1 > est + 0.05) result.Add(s);
-                    heaviest = Math.Max(heaviest, s.Weight.Value);
+                    if (e1 > est + 0.05) result.Add(s); // gold = best estimated 1-rep max ever
                     est = Math.Max(est, e1);
                     break;
                 case ExerciseType.Reps when best.Reps > 0:
