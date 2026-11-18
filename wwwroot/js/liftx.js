@@ -121,22 +121,20 @@
         if (document.visibilityState === 'visible') acquireLock();
     });
 
-    // ── Return key in a set row: weight → reps → check the set ──
-    // Done here instead of in C# so the typed value is committed (blur) before the check runs.
-    document.addEventListener('keydown', function (e) {
-        if (e.key !== 'Enter') return;
-        const el = e.target;
-        if (!el || !el.classList || !el.classList.contains('set-input')) return;
-        const row = el.closest('.set-row');
-        if (!row) return;
-        e.preventDefault();
-        const inputs = Array.from(row.querySelectorAll('.set-input'));
-        const i = inputs.indexOf(el);
-        if (i >= 0 && i < inputs.length - 1) { inputs[i + 1].focus(); return; }
-        el.blur();
-        const check = row.querySelector('.check');
-        if (check && !row.classList.contains('done')) setTimeout(function () { check.click(); }, 50);
-    });
+    // ── Custom keypad: scroll the box being edited so it sits above the keypad ──
+    L.revealAboveKeypad = function () {
+        requestAnimationFrame(function () {
+            const el = document.querySelector('.set-input.editing');
+            const pad = document.querySelector('.numpad');
+            if (!el || !pad) return;
+            const r = el.getBoundingClientRect();
+            const limit = window.innerHeight - pad.offsetHeight - 16;
+            const header = document.querySelector('.wk-header');
+            const top = header ? header.getBoundingClientRect().bottom + 12 : 12;
+            if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: 'smooth' });
+            else if (r.top < top) window.scrollBy({ top: r.top - top, behavior: 'smooth' });
+        });
+    };
 
     // ── Misc UI helpers ──
     L.scrollTop = function () { window.scrollTo(0, 0); };

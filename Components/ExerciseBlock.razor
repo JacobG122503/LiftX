@@ -57,32 +57,28 @@
             <div class="set-grid set-row @gridClass @(set.Done ? "done" : "") @(pr ? "pr" : "") @(just ? "just-done" : "")" @key="set">
                 <button class="set-num" @onclick="() => SetMenu(idx)">@(idx + 1)</button>
 
-                @switch (type)
+                @{ var fields = FieldsFor(type); }
+                @foreach (var f in fields)
                 {
-                    case ExerciseType.Weight:
-                    case ExerciseType.Assisted:
-                        <input class="set-input" type="number" step="any" min="0" enterkeyhint="next"
-                               placeholder="@ExerciseInfo.Num(ph?.Weight)" @bind="set.Weight" @bind:after="Changed" />
-                        <input class="set-input" type="number" min="0" enterkeyhint="done"
-                               placeholder="@ph?.Reps" @bind="set.Reps" @bind:after="Changed" />
-                        break;
-                    case ExerciseType.Reps:
-                        <input class="set-input span2" type="number" min="0" enterkeyhint="done"
-                               placeholder="@ph?.Reps" @bind="set.Reps" @bind:after="Changed" />
-                        break;
-                    case ExerciseType.Duration:
-                        <input class="set-input set-input--time span2" type="text" inputmode="numeric" autocomplete="off"
-                               placeholder="@(ph?.Seconds != null ? ExerciseInfo.FormatTime(ph.Seconds) : "m:ss")"
-                               value="@ExerciseInfo.FormatTime(set.Seconds)" @onchange="e => SetTime(set, e)" />
-                        break;
-                    case ExerciseType.Cardio:
-                    case ExerciseType.Stairs:
-                        <input class="set-input" type="number" step="any" min="0" enterkeyhint="next"
-                               placeholder="@ExerciseInfo.Num(ph?.Distance)" @bind="set.Distance" @bind:after="Changed" />
-                        <input class="set-input set-input--time" type="text" inputmode="numeric" autocomplete="off"
-                               placeholder="@(ph?.Seconds != null ? ExerciseInfo.FormatTime(ph.Seconds) : "m:ss")"
-                               value="@ExerciseInfo.FormatTime(set.Seconds)" @onchange="e => SetTime(set, e)" />
-                        break;
+                    var field = f;
+                    var editing = Keypad.IsEditing(set, field);
+                    var text = editing && !Keypad.Fresh ? Keypad.TypedText : (Shown(set, field) ?? Shown(ph, field) ?? "");
+                    <button id="@CellId(set, field)"
+                            class="set-input @(fields.Count == 1 ? "span2" : "") @(field == SetField.Time ? "set-input--time" : "") @(editing ? "editing" : "")"
+                            @onclick="() => Edit(idx, set, field)" @onclick:stopPropagation="true">
+                        @if (editing && Keypad.Fresh && text.Length > 0)
+                        {
+                            <span class="sel">@text</span>
+                        }
+                        else
+                        {
+                            @text
+                        }
+                        @if (editing && !Keypad.Fresh)
+                        {
+                            <span class="caret"></span>
+                        }
+                    </button>
                 }
 
                 @if (Live)
@@ -118,6 +114,41 @@
     [Parameter] public bool Live { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public EventCallback OnMenu { get; set; }
+    [Parameter, EditorRequired] public KeypadState Keypad { get; set; } = default!;
+
+    private static IReadOnlyList<SetField> FieldsFor(ExerciseType t) => t switch
+    {
+        ExerciseType.Weight or ExerciseType.Assisted => new[] { SetField.Weight, SetField.Reps },
+        ExerciseType.Reps => new[] { SetField.Reps },
+        ExerciseType.Duration => new[] { SetField.Time },
+        _ => new[] { SetField.Distance, SetField.Time },
+    };
+
+    /// <summary>A set's value for one box, formatted (null = empty).</summary>
+    private static string? Shown(SetEntry? s, SetField f) => s == null ? null : f switch
+    {
+        SetField.Weight => s.Weight is double w ? ExerciseInfo.Num(w) : null,
+        SetField.Reps => s.Reps?.ToString(),
+        SetField.Distance => s.Distance is double d ? ExerciseInfo.Num(d) : null,
+        SetField.Time => s.Seconds is int t ? ExerciseInfo.FormatTime(t) : null,
+        _ => null
+    };
+
+    private static string CellId(SetEntry s, SetField f) =>
+        $"cell-{System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(s)}-{(int)f}";
+
+    private Task Edit(int idx, SetEntry set, SetField field) =>
+        Keypad.Open(set, field, FieldsFor(S.TypeOf(Exercise.Name)), Changed,
+            Live ? () => CheckFromKeypad(idx) : null);
+
+    /// <summary>DONE on the keypad's last box checks the set (if it isn't already).</summary>
+    private async Task CheckFromKeypad(int idx)
+    {
+        if (idx >= Exercise.Sets.Count || Exercise.Sets[idx].Done) return;
+        var prev = S.PreviousSets(Exercise.Name, DateTime.MaxValue, Workout.Id);
+        await Toggle(idx, prev, S.TypeOf(Exercise.Name));
+        StateHasChanged();
+    }
 
     private bool _collapsed;
     private bool _stats;
@@ -205,14 +236,9 @@
         return null;
     }
 
-    private async Task SetTime(SetEntry set, ChangeEventArgs e)
-    {
-        set.Seconds = ExerciseInfo.ParseTime(e.Value?.ToString());
-        await Changed();
-    }
-
     private async Task Toggle(int idx, List<SetEntry>? prev, ExerciseType type)
     {
+        if (Keypad.IsOpen) await Keypad.CloseAsync();
         var set = Exercise.Sets[idx];
         if (set.Done)
         {

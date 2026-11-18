@@ -1642,3 +1642,69 @@ details[open] .more-stats-toggle::before { transform: rotate(90deg); }
     .set-row.just-done::before, .set-row.just-done .check, .set-row.pr::after,
     .set-row.pr.just-done::after, .pr-burst::before, .pr-burst i { animation: none !important; }
 }
+
+
+/* ═══ Custom number keypad (lift screen) ══════════════════════════════════ */
+.set-input { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.set-input.editing { border-color: var(--accent); background-color: var(--surface-3); }
+.set-input .sel { background: var(--accent-bg-2); border-radius: 6px; padding: 0 5px; }
+.set-input .caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    margin-left: 2px;
+    background: var(--accent);
+    vertical-align: -0.15em;
+    animation: caret-blink 1s steps(1) infinite;
+}
+@keyframes caret-blink { 50% { opacity: 0; } }
+.wk.keypad-open .wk-bottom-space { height: calc(240px + var(--safe-bottom)); }
+
+.numpad {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 7px 8px calc(7px + var(--nav-pad));
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+    animation: slide-up 0.16s ease-out;
+}
+.numpad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr) 1.15fr;
+    grid-auto-rows: 40px;
+    gap: 6px;
+    max-width: var(--max-w);
+    margin: 0 auto;
+}
+.np-key {
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+}
+.np-key:active:not(:disabled) { background: var(--surface-3); }
+.np-key:disabled { opacity: 0.3; }
+.np-back { grid-column: 4; grid-row: 1; color: var(--text-2); }
+.np-hide { color: var(--text-2); }
+.np-next {
+    grid-column: 4;
+    grid-row: 2 / span 3;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    box-shadow: 0 3px 0 var(--accent-dark);
+    margin-bottom: 3px;
+}
+.np-next:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--accent-dark); }

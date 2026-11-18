@@ -1,0 +1,32 @@
+@* LiftX's own number keypad: digits, ., backspace, Next/Done, and hide. *@
+
+@if (Keypad.IsOpen)
+{
+    <div class="numpad" @onclick:stopPropagation="true">
+        <div class="numpad-grid">
+            <button class="np-key" @onclick="() => Keypad.Key('1')">1</button>
+            <button class="np-key" @onclick="() => Keypad.Key('2')">2</button>
+            <button class="np-key" @onclick="() => Keypad.Key('3')">3</button>
+            <button class="np-key np-back" @onclick="Keypad.Backspace" aria-label="Delete">
+                <svg width="24" height="19" viewBox="0 0 30 24" aria-hidden="true">
+                    <path d="M10 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H10L2 12z" fill="currentColor" />
+                    <path d="M14 8l8 8M22 8l-8 8" stroke="var(--surface-2)" stroke-width="2.4" stroke-linecap="round" />
+                </svg>
+            </button>
+            <button class="np-key" @onclick="() => Keypad.Key('4')">4</button>
+            <button class="np-key" @onclick="() => Keypad.Key('5')">5</button>
+            <button class="np-key" @onclick="() => Keypad.Key('6')">6</button>
+            <button class="np-next" @onclick="Keypad.Next">@(Keypad.OnLastField ? "DONE" : "NEXT")</button>
+            <button class="np-key" @onclick="() => Keypad.Key('7')">7</button>
+            <button class="np-key" @onclick="() => Keypad.Key('8')">8</button>
+            <button class="np-key" @onclick="() => Keypad.Key('9')">9</button>
+            <button class="np-key" disabled="@(!Keypad.AllowsDecimal)" @onclick="() => Keypad.Key('.')">.</button>
+            <button class="np-key" @onclick="() => Keypad.Key('0')">0</button>
+            <button class="np-key np-hide" @onclick="Keypad.CloseAsync" aria-label="Hide keypad"><Icon Name="chevron-down" Size="22" Stroke="2.4" /></button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public KeypadState Keypad { get; set; } = default!;
+}

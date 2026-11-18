@@ -1,8 +1,9 @@
 @inherits StateComponent
 @inject RestTimer Timer
 @inject Dialogs D
+@inject IJSRuntime JS
 
-<div class="wk">
+<div class="wk @(_keypad.IsOpen ? "keypad-open" : "")" @onclick="CloseKeypad">
     <header class="wk-header">
         @if (Live)
         {
@@ -46,7 +47,7 @@
         {
             var idx = i;
             var ex = Workout.Exercises[i];
-            <ExerciseBlock @key="ex" Workout="Workout" Exercise="ex" Live="Live"
+            <ExerciseBlock @key="ex" Workout="Workout" Exercise="ex" Live="Live" Keypad="_keypad"
                            OnChanged="Changed" OnMenu="() => ExerciseMenu(idx)" />
         }
 
@@ -68,6 +69,7 @@
     {
         <RestTimerBar />
     }
+    <NumberPad Keypad="_keypad" />
 </div>
 
 @if (_picker)
@@ -89,6 +91,34 @@
     [Parameter] public bool Live { get; set; }
 
     private bool _picker, _restSheet, _finish;
+    private readonly KeypadState _keypad = new();
+    private int _revealed;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _keypad.Changed += OnKeypadChanged;
+    }
+
+    private void OnKeypadChanged() => InvokeAsync(StateHasChanged);
+
+    public override void Dispose()
+    {
+        _keypad.Changed -= OnKeypadChanged;
+        base.Dispose();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Keep the box being typed into visible above the keypad
+        if (_keypad.IsOpen && _keypad.Activation != _revealed)
+        {
+            _revealed = _keypad.Activation;
+            try { await JS.InvokeVoidAsync("liftx.revealAboveKeypad"); } catch { }
+        }
+    }
+
+    private Task CloseKeypad() => _keypad.IsOpen ? _keypad.CloseAsync() : Task.CompletedTask;
     private int _replaceIdx = -1;
 
     private string TitleText => !string.IsNullOrWhiteSpace(Workout.Name)
