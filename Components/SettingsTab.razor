@@ -7,39 +7,74 @@
 
 <section class="settings-section">
     <div class="settings-title">Theme</div>
-    <div class="card settings-card">
-        <div class="setting-label">Main color</div>
-        <div class="swatches">
-            @foreach (var (name, hex) in Backgrounds)
-            {
-                <button class="swatch swatch--bg @(Same(st.Background, hex) ? "active" : "")" style="background:@hex" title="@name"
-                        aria-label="@name" @onclick="() => SetBg(hex)"></button>
-            }
-            <label class="swatch swatch--custom @(!Backgrounds.Any(b => Same(b.Hex, st.Background)) ? "active" : "")" title="Custom">
-                <span class="swatch-wheel"></span>
-                <input type="color" value="@st.Background" @oninput="e => S.PreviewTheme(e.Value?.ToString() ?? st.Background, st.Accent)"
-                       @onchange="e => SetBg(e.Value?.ToString())" />
-            </label>
-        </div>
+    <div class="card settings-card theme-card">
+        <button class="theme-menu @(_open == "bg" ? "open" : "")" @onclick='() => ToggleMenu("bg")' aria-expanded="@(_open == "bg" ? "true" : "false")">
+            <span class="theme-menu-swatch" style="background:@BgCss(st.Background)"></span>
+            <span class="row-main">
+                <span class="row-title">Main color</span>
+                <span class="row-sub">@BgName(st.Background)</span>
+            </span>
+            <Icon Name="chevron-down" Size="22" Stroke="2.4" />
+        </button>
+        @if (_open == "bg")
+        {
+            <div class="theme-panel">
+                <div class="swatch-group-label">Dark</div>
+                <div class="swatch-grid">
+                    @foreach (var (name, val) in DarkBackgrounds)
+                    {
+                        <button class="swatch swatch--bg @(Same(st.Background, val) ? "active" : "")" style="background:@BgCss(val)"
+                                title="@name" aria-label="@name" @onclick="() => SetBg(val)"></button>
+                    }
+                </div>
+                <div class="swatch-group-label">Light</div>
+                <div class="swatch-grid">
+                    @foreach (var (name, val) in LightBackgrounds)
+                    {
+                        <button class="swatch swatch--bg @(Same(st.Background, val) ? "active" : "")" style="background:@BgCss(val)"
+                                title="@name" aria-label="@name" @onclick="() => SetBg(val)"></button>
+                    }
+                </div>
+                <label class="custom-color @(BgName(st.Background) == "Custom" ? "active" : "")">
+                    <span class="swatch swatch--custom"><span class="swatch-wheel"></span></span>
+                    <span>Custom color</span>
+                    <input type="color" value="@FirstHex(st.Background)" @oninput="e => S.PreviewTheme(e.Value?.ToString() ?? st.Background, st.Accent)"
+                           @onchange="e => SetBg(e.Value?.ToString())" />
+                </label>
+            </div>
+        }
 
-        <div class="setting-label">Accent color</div>
-        <div class="swatches">
-            @foreach (var (name, hex) in Accents)
-            {
-                <button class="swatch @(Same(st.Accent, hex) ? "active" : "")" style="background:@hex" title="@name"
-                        aria-label="@name" @onclick="() => SetAccent(hex)"></button>
-            }
-            <label class="swatch swatch--custom @(!Accents.Any(a => Same(a.Hex, st.Accent)) ? "active" : "")" title="Custom">
-                <span class="swatch-wheel"></span>
-                <input type="color" value="@st.Accent" @oninput="e => S.PreviewTheme(st.Background, e.Value?.ToString() ?? st.Accent)"
-                       @onchange="e => SetAccent(e.Value?.ToString())" />
-            </label>
-        </div>
+        <button class="theme-menu @(_open == "accent" ? "open" : "")" @onclick='() => ToggleMenu("accent")' aria-expanded="@(_open == "accent" ? "true" : "false")">
+            <span class="theme-menu-swatch" style="background:@st.Accent"></span>
+            <span class="row-main">
+                <span class="row-title">Accent color</span>
+                <span class="row-sub">@AccentName(st.Accent)</span>
+            </span>
+            <Icon Name="chevron-down" Size="22" Stroke="2.4" />
+        </button>
+        @if (_open == "accent")
+        {
+            <div class="theme-panel">
+                <div class="swatch-grid">
+                    @foreach (var (name, hex) in Accents)
+                    {
+                        <button class="swatch @(Same(st.Accent, hex) ? "active" : "")" style="background:@hex" title="@name"
+                                aria-label="@name" @onclick="() => SetAccent(hex)"></button>
+                    }
+                </div>
+                <label class="custom-color @(AccentName(st.Accent) == "Custom" ? "active" : "")">
+                    <span class="swatch swatch--custom"><span class="swatch-wheel"></span></span>
+                    <span>Custom color</span>
+                    <input type="color" value="@st.Accent" @oninput="e => S.PreviewTheme(st.Background, e.Value?.ToString() ?? st.Accent)"
+                           @onchange="e => SetAccent(e.Value?.ToString())" />
+                </label>
+            </div>
+        }
 
         <div class="theme-preview">
+            <span class="muted">Preview</span>
             <button class="btn-3d btn-small" tabindex="-1">START</button>
             <span class="check on"><Icon Name="check" Size="20" Stroke="3" /></span>
-            <span class="muted">Preview</span>
             @if (!Same(st.Background, Defaults.Background) || !Same(st.Accent, Defaults.Accent))
             {
                 <button class="link-btn" @onclick="ResetTheme">Reset to default</button>
@@ -70,6 +105,16 @@
         <div class="setting-row">
             <div class="row-main"><div class="row-title">Keep screen awake during a lift</div><div class="row-sub">So the rest timer stays visible</div></div>
             <Toggle Value="st.KeepAwake" ValueChanged="v => { st.KeepAwake = v; S.SaveSettings(); }" />
+        </div>
+    </div>
+</section>
+
+<section class="settings-section">
+    <div class="settings-title">Lift Screen</div>
+    <div class="card settings-card">
+        <div class="setting-row">
+            <div class="row-main"><div class="row-title">Show what beats your PR</div><div class="row-sub">A small line above each exercise's sets, e.g. 185 × 6 or 190 × 5</div></div>
+            <Toggle Value="st.ShowPrTargets" ValueChanged="v => { st.ShowPrTargets = v; S.SaveSettings(); }" />
         </div>
     </div>
 </section>
@@ -139,17 +184,36 @@
 </footer>
 
 @code {
-    private static readonly (string Name, string Hex)[] Backgrounds =
+    // Main colors are "top,bottom" gradients
+    private static readonly (string Name, string Value)[] DarkBackgrounds =
     {
-        ("Black", "#000000"), ("Charcoal", "#121212"), ("Midnight", "#0B1220"),
-        ("Wine", "#1A0507"), ("Forest", "#06140D"), ("Light", "#F4F4F6"),
+        ("Graphite", "#22252a,#0b0c0e"), ("Onyx", "#161616,#000000"), ("Midnight", "#18213a,#070a13"), ("Ocean", "#0f2b35,#040d11"),
+        ("Forest", "#13291d,#040b07"), ("Plum", "#28173a,#0a0610"), ("Wine", "#35141b,#0e0406"), ("Ember", "#2f2116,#0c0805"),
     };
 
+    private static readonly (string Name, string Value)[] LightBackgrounds =
+    {
+        ("Cloud", "#f6f7f9,#e4e6ea"), ("Pearl", "#f8f6f1,#e7e1d5"), ("Sky", "#f2f6fe,#d9e4f6"), ("Mint", "#f1faf5,#d8ede1"),
+        ("Lavender", "#f6f2fe,#e3dbf4"), ("Blush", "#fdf3f4,#f2dcdf"), ("Sand", "#faf6ec,#ebdfc6"), ("Silver", "#eef0f3,#d4d8de"),
+    };
+
+    // No gold/yellow here on purpose: gold is saved for PRs
     private static readonly (string Name, string Hex)[] Accents =
     {
-        ("Medium Sea Green", "#3CB371"), ("Red", "#E5463B"), ("Orange", "#F27A1A"), ("Gold", "#F2B705"),
-        ("Cyan", "#14B8D4"), ("Blue", "#3B82F6"), ("Purple", "#8B5CF6"), ("Pink", "#EC4899"),
+        ("Medium Sea Green", "#3CB371"), ("Lime", "#84CC16"), ("Teal", "#14B8A6"), ("Cyan", "#06B6D4"),
+        ("Sky", "#38BDF8"), ("Blue", "#3B82F6"), ("Indigo", "#6366F1"), ("Purple", "#8B5CF6"),
+        ("Fuchsia", "#D946EF"), ("Pink", "#EC4899"), ("Rose", "#F43F5E"), ("Red", "#E5463B"),
+        ("Coral", "#FF7F50"), ("Orange", "#F27A1A"), ("Copper", "#C2703D"), ("Silver", "#CBD5E1"),
     };
+
+    private string? _open; // which theme menu is expanded: "bg", "accent" or none
+    private void ToggleMenu(string which) => _open = _open == which ? null : which;
+
+    private static string BgCss(string v) => v.Contains(',') ? $"linear-gradient(160deg, {v.Replace(",", ", ")})" : v;
+    private static string FirstHex(string v) => v.Split(',')[0];
+    private static string BgName(string v) =>
+        DarkBackgrounds.Concat(LightBackgrounds).FirstOrDefault(b => Same(b.Value, v)).Name ?? "Custom";
+    private static string AccentName(string v) => Accents.FirstOrDefault(a => Same(a.Hex, v)).Name ?? "Custom";
 
     private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 

@@ -9,6 +9,8 @@
     var def = S.FindDef(Exercise.Name);
     var gridClass = Live ? "" : "no-check";
     var prSets = Live ? PrSets(type, Best()) : new HashSet<SetEntry>();
+    _lastPr = prSets;
+    var target = Live && S.Data.Settings.ShowPrTargets ? PrTarget(type) : null;
 }
 
 <div class="ex-card">
@@ -28,6 +30,19 @@
         @if (!string.IsNullOrWhiteSpace(def?.Notes))
         {
             <button class="ex-note" @onclick="OnMenu"><Icon Name="note" Size="16" /> <span>@def!.Notes</span></button>
+        }
+
+        @if (target is { } tg)
+        {
+            <div class="pr-target" aria-label="To beat your PR">
+                <span class="pr-target-label">Beat PR:</span>
+                <span class="pr-target-chip">@tg.First</span>
+                @if (tg.Second != null)
+                {
+                    <span class="pr-target-or">or</span>
+                    <span class="pr-target-chip">@tg.Second</span>
+                }
+            </div>
         }
 
         <div class="set-grid set-head @gridClass">
@@ -54,7 +69,8 @@
             var ph = Placeholder(idx, prev);
             var pr = prSets.Contains(set);
             var just = _justDone.Contains(set);
-            <div class="set-grid set-row @gridClass @(set.Done ? "done" : "") @(pr ? "pr" : "") @(just ? "just-done" : "")" @key="set">
+            var leaving = !set.Done && _leavingPr.Contains(set);
+            <div class="set-grid set-row @gridClass @(set.Done ? "done" : "") @(pr ? "pr" : "") @(just ? "just-done" : "") @(leaving ? "pr-leaving" : "")" @key="set">
                 <button class="set-num" @onclick="() => SetMenu(idx)">@(idx + 1)</button>
 
                 @{ var fields = FieldsFor(type); }
@@ -155,9 +171,17 @@
 
     // Sets checked in the last moment: they get the fill / PR animation (not replayed on re-render or resume)
     private readonly HashSet<SetEntry> _justDone = new();
+    // Gold sets that were just unchecked: the fill leaves in gold instead of flashing the accent colour
+    private readonly HashSet<SetEntry> _leavingPr = new();
+    // Latest animation token per set. A timer only ends the animation it started, so checking,
+    // unchecking and re-checking quickly never cuts the newest animation short.
+    private readonly Dictionary<SetEntry, int> _animToken = new();
+    private int _animSeq;
+    private HashSet<SetEntry> _lastPr = new();
 
-    // All-time bests for this exercise from finished lifts (cached until the data changes)
-    private record Bests(double Est1RM, int Reps, int Seconds);
+    // All-time bests for this exercise from finished lifts (cached until the data changes).
+    // BestWeight × BestReps is the set with the highest estimated 1-rep max.
+    private record Bests(double Est1RM, double BestWeight, int BestReps, int Reps, int Seconds);
     private Bests? _best;
     private int _bestVersion = -1;
 
@@ -166,8 +190,11 @@
         if (_bestVersion == S.Version) return _best;
         _bestVersion = S.Version;
         var sets = S.HistoryOf(Exercise.Name).Where(h => h.W.Id != Workout.Id).SelectMany(h => h.E.Sets).ToList();
+        var top = sets.Where(s => s.Weight > 0 && s.Reps > 0).MaxBy(s => ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value));
         _best = sets.Count == 0 ? null : new Bests(
-            sets.Where(s => s.Weight > 0 && s.Reps > 0).Select(s => ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value)).DefaultIfEmpty(0).Max(),
+            top == null ? 0 : ExerciseInfo.Est1RM(top.Weight!.Value, top.Reps!.Value),
+            top?.Weight ?? 0,
+            top?.Reps ?? 0,
             sets.Select(s => s.Reps ?? 0).DefaultIfEmpty(0).Max(),
             sets.Select(s => s.Seconds ?? 0).DefaultIfEmpty(0).Max());
         return _best;
@@ -181,9 +208,10 @@
     private HashSet<SetEntry> PrSets(ExerciseType type, Bests? best)
     {
         var result = new HashSet<SetEntry>();
+        _run = null;
         if (best == null) return result;
-        double est = best.Est1RM;
-        int reps = best.Reps, secs = best.Seconds;
+        double est = best.Est1RM, bestW = best.BestWeight;
+        int bestR = best.BestReps, reps = best.Reps, secs = best.Seconds;
         var checkedSets = Workout.Exercises
             .Where(e => AppState.SameName(e.Name, Exercise.Name))
             .SelectMany(e => e.Sets)
@@ -196,8 +224,11 @@
             {
                 case ExerciseType.Weight when s.Weight > 0 && s.Reps > 0:
                     var e1 = ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value);
-                    if (e1 > est + 0.05) result.Add(s); // gold = best estimated 1-rep max ever
-                    est = Math.Max(est, e1);
+                    if (e1 > est + 0.05) // gold = best estimated 1-rep max ever
+                    {
+                        result.Add(s);
+                        est = e1; bestW = s.Weight.Value; bestR = s.Reps.Value;
+                    }
                     break;
                 case ExerciseType.Reps when best.Reps > 0:
                     if (s.Reps > reps) result.Add(s);
@@ -209,14 +240,66 @@
                     break;
             }
         }
+        _run = new Running(est, bestW, bestR, reps, secs);
         return result;
     }
 
+    // The best to beat right now: all-time best, raised by anything better checked in this lift
+    private record Running(double Est1RM, double Weight, int WeightReps, int Reps, int Seconds);
+    private Running? _run;
+
+    /// <summary>
+    /// What beats your PR: for weight lifts, more reps at your PR weight, or the reps needed at the next
+    /// 5 lb step up (by estimated 1-rep max, the same rule that turns a set gold).
+    /// Nothing the first time you ever do an exercise.
+    /// </summary>
+    private (string First, string? Second)? PrTarget(ExerciseType type)
+    {
+        if (_run is not { } r) return null;
+        switch (type)
+        {
+            case ExerciseType.Weight when r.Est1RM > 0 && r.Weight > 0:
+                var next = Math.Floor(r.Weight / 5) * 5 + 5;
+                return ($"{ExerciseInfo.Num(r.Weight)} × {RepsToBeat(r.Est1RM, r.Weight)}",
+                        $"{ExerciseInfo.Num(next)} × {RepsToBeat(r.Est1RM, next)}");
+            case ExerciseType.Reps when r.Reps > 0:
+                return ($"{r.Reps + 1} reps", null);
+            case ExerciseType.Duration when r.Seconds > 0:
+                return (ExerciseInfo.FormatTime(r.Seconds + 1), null);
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Fewest reps at this weight whose estimated 1-rep max beats the best (matches the gold rule).</summary>
+    private static int RepsToBeat(double est, double weight) =>
+        Math.Max(1, (int)Math.Floor(30 * ((est + 0.05) / weight - 1)) + 1);
+
+    private int NewAnimToken(SetEntry set) => _animToken[set] = ++_animSeq;
+    private bool IsLatest(SetEntry set, int token) => _animToken.TryGetValue(set, out var t) && t == token;
+
     private async Task PlayCheckAnimation(SetEntry set)
     {
+        var token = NewAnimToken(set);
+        _leavingPr.Remove(set);
         _justDone.Add(set);
         await Task.Delay(2200);
+        if (!IsLatest(set, token)) return; // checked again since: that newer animation ends itself
         _justDone.Remove(set);
+        _animToken.Remove(set);
+        StateHasChanged();
+    }
+
+    private async Task PlayUncheck(SetEntry set, bool wasPr)
+    {
+        var token = NewAnimToken(set);
+        _justDone.Remove(set);
+        if (!wasPr) { _animToken.Remove(set); return; }
+        _leavingPr.Add(set);
+        await Task.Delay(350);
+        if (!IsLatest(set, token)) return;
+        _leavingPr.Remove(set);
+        _animToken.Remove(set);
         StateHasChanged();
     }
 
@@ -242,7 +325,7 @@
         {
             set.Done = false;
             set.DoneOrder = null;
-            _justDone.Remove(set);
+            _ = PlayUncheck(set, _lastPr.Contains(set));
             // Numbers that just came from the grey values go back to grey
             var grey = Placeholder(idx, prev);
             if (grey?.Weight != null ? set.Weight == grey.Weight : set.Weight == 0) set.Weight = null;

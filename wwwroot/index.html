@@ -35,15 +35,23 @@
                 var a = c.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
                 return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
             }
-            var B = rgb(bg) || [0, 0, 0], A = rgb(accent) || [60, 179, 113];
-            var light = lum(B) > 0.4;
+            // Main color is one hex or a "top,bottom" gradient pair
+            var parts = String(bg || '').split(',');
+            var B1 = rgb(parts[0]) || [0, 0, 0], B2 = rgb(parts[1]) || B1;
+            var A = rgb(accent) || [60, 179, 113];
+            var light = lum(mix(B1, B2, 0.5)) > 0.4;
+            // Cards are built from the lighter end on dark themes (darker end on light ones),
+            // so they stand out the same from the top of the screen to the bottom
+            var B = (lum(B1) > lum(B2)) === !light ? B1 : B2;
             var toward = light ? [0, 0, 0] : [255, 255, 255];
             function surface(amt) { return hex(mix(mix(B, toward, amt), A, light ? 0.02 : 0.035)); }
             var T = light ? [22, 24, 29] : [243, 244, 246];
             var la = lum(A);
             var onAccent = (la + 0.05) / 0.05 >= 1.05 / (la + 0.05) ? '#000000' : '#ffffff';
             var s = document.documentElement.style;
-            s.setProperty('--bg', hex(B));
+            s.setProperty('--bg', hex(B1));
+            s.setProperty('--bg-end', hex(B2));
+            s.setProperty('--bg-grad', 'linear-gradient(180deg, ' + hex(B1) + ', ' + hex(B2) + ')');
             s.setProperty('--surface', surface(light ? 0.035 : 0.07));
             s.setProperty('--surface-2', surface(light ? 0.07 : 0.12));
             s.setProperty('--surface-3', surface(light ? 0.12 : 0.19));
@@ -59,13 +67,13 @@
             s.colorScheme = light ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
             var meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) meta.setAttribute('content', hex(B));
+            if (meta) meta.setAttribute('content', hex(B1));
             if (window.chartInterop && window.chartInterop.refreshAllCharts) window.chartInterop.refreshAllCharts();
         };
         (function () {
             var t = null;
             try { t = JSON.parse(localStorage.getItem('liftx:theme') || 'null'); } catch (e) { }
-            window.__liftxTheme((t && t.bg) || '#000000', (t && t.accent) || '#3CB371');
+            window.__liftxTheme((t && t.bg) || '#22252a,#0b0c0e', (t && t.accent) || '#3CB371');
         })();
     </script>
     <script type="importmap"></script>

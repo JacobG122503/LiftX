@@ -63,16 +63,22 @@
     };
 
     // ── Rest timer beep ──
-    // iOS only allows audio after a tap, so unlockAudio() runs when you check off a set.
+    // iOS only plays audio after a tap. Turning audio on is slow the first time (it made the first
+    // check of a lift stutter), so it happens on your first tap anywhere — usually START — instead
+    // of in the middle of the check animation. Once it's on, unlockAudio() returns straight away.
     let audioCtx = null;
+    function createAudio() {
+        if (audioCtx) return;
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) audioCtx = new AC();
+        } catch (e) { audioCtx = null; }
+    }
     L.unlockAudio = function () {
         try {
-            if (!audioCtx) {
-                const AC = window.AudioContext || window.webkitAudioContext;
-                if (!AC) return;
-                audioCtx = new AC();
-            }
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+            createAudio();
+            if (!audioCtx || audioCtx.state === 'running') return;
+            audioCtx.resume();
             const o = audioCtx.createOscillator();
             const g = audioCtx.createGain();
             g.gain.value = 0;
@@ -81,6 +87,10 @@
             o.stop(audioCtx.currentTime + 0.01);
         } catch (e) { }
     };
+    document.addEventListener('touchend', L.unlockAudio, { capture: true, passive: true });
+    document.addEventListener('click', L.unlockAudio, true);
+    // Build it (still silent and paused) shortly after the app opens, so even the first tap only has to resume it
+    setTimeout(createAudio, 2500);
     L.beep = function () {
         try { if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } catch (e) { }
         if (!audioCtx) return;
@@ -140,6 +150,13 @@
     L.scrollTop = function () { window.scrollTo(0, 0); };
     L.scrollToBottom = function () {
         requestAnimationFrame(function () { window.scrollTo(0, document.documentElement.scrollHeight); });
+    };
+    L.focusEnd = function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.focus();
+        const n = (el.value || '').length;
+        try { el.setSelectionRange(n, n); } catch (e) { }
     };
     L.focus = function (id) {
         const el = document.getElementById(id);

@@ -23,7 +23,7 @@
 
         @if (Live)
         {
-            <button class="icon-btn" @onclick="Menu" aria-label="More"><Icon Name="more" /></button>
+            <button class="icon-btn wk-more" @onclick="Menu" aria-label="More"><Icon Name="more" /></button>
             <button class="finish-btn" @onclick="() => _finish = true" aria-label="Finish lift"><Icon Name="arrow-right" Size="24" Stroke="2.6" /></button>
         }
         else
@@ -41,7 +41,12 @@
             </div>
         }
 
-        <textarea class="wk-notes" rows="2" placeholder="Your workout notes..." @bind="Workout.Notes" @bind:after="Changed"></textarea>
+        @* Notes stay hidden until there are some (or you pick Notes from the ⋮ menu). Always there when editing a past lift. *@
+        @if (!Live || _notesOpen || !string.IsNullOrWhiteSpace(Workout.Notes))
+        {
+            <textarea id="wk-notes" class="wk-notes" rows="2" placeholder="Notes for this lift..."
+                      @bind="Workout.Notes" @bind:after="Changed" @onblur="NotesBlur"></textarea>
+        }
 
         @for (int i = 0; i < Workout.Exercises.Count; i++)
         {
@@ -90,7 +95,7 @@
     [Parameter, EditorRequired] public Workout Workout { get; set; } = default!;
     [Parameter] public bool Live { get; set; }
 
-    private bool _picker, _restSheet, _finish;
+    private bool _picker, _restSheet, _finish, _notesOpen;
     private readonly KeypadState _keypad = new();
     private int _revealed;
 
@@ -141,15 +146,18 @@
 
     private async Task Menu()
     {
+        var hasNotes = !string.IsNullOrWhiteSpace(Workout.Notes);
         var choice = await D.Choose(null,
             new ActionItem("Rename lift"),
+            new ActionItem(hasNotes ? "Edit notes" : "Add notes"),
             new ActionItem("Rest timer"),
             new ActionItem("Discard lift", Danger: true));
         switch (choice)
         {
             case 0: await Rename(); break;
-            case 1: _restSheet = true; StateHasChanged(); break;
-            case 2:
+            case 1: await OpenNotes(); break;
+            case 2: _restSheet = true; StateHasChanged(); break;
+            case 3:
                 if (await D.Confirm("Discard this lift?", "Nothing from it will be saved.", "Discard", danger: true))
                 {
                     Timer.Stop();
@@ -157,6 +165,21 @@
                 }
                 break;
         }
+    }
+
+    private async Task OpenNotes()
+    {
+        if (_keypad.IsOpen) await _keypad.CloseAsync();
+        _notesOpen = true;
+        StateHasChanged();
+        await Task.Yield();
+        try { await JS.InvokeVoidAsync("liftx.focusEnd", "wk-notes"); } catch { }
+    }
+
+    // Leaving the notes box empty hides it again
+    private void NotesBlur()
+    {
+        if (string.IsNullOrWhiteSpace(Workout.Notes)) _notesOpen = false;
     }
 
     private void OpenPicker()

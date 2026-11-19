@@ -33,6 +33,8 @@ public class AppSettings
     public bool RestTimerEnabled { get; set; } = true;
     public bool TimerSound { get; set; } = true;
     public bool KeepAwake { get; set; } = true;
+    /// <summary>Small "Beat PR" line above each exercise's sets during a lift.</summary>
+    public bool ShowPrTargets { get; set; } = true;
     public string FileName { get; set; } = Defaults.FileName;
     /// <summary>The "how saving works" popup has been read and closed.</summary>
     public bool SeenSaveIntro { get; set; }
@@ -40,7 +42,7 @@ public class AppSettings
 
 public static class Defaults
 {
-    public const string Background = "#000000";
+    public const string Background = "#22252a,#0b0c0e"; // Graphite: grey to near-black gradient (top,bottom)
     public const string Accent = "#3CB371"; // mediumseagreen
     public const string FileName = "LiftX-data.json";
 }
