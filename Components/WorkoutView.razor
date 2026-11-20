@@ -208,7 +208,7 @@
     {
         if (_replaceIdx >= 0 && _replaceIdx < Workout.Exercises.Count && names.Count > 0)
         {
-            Workout.Exercises[_replaceIdx].Name = names[0];
+            ReplaceAt(_replaceIdx, names[0]);
         }
         else
         {
@@ -225,6 +225,20 @@
             }
         }
         ClosePicker();
+        Changed();
+    }
+
+    /// <summary>
+    /// Replace: the card becomes the new exercise with the same number of set rows, all cleared.
+    /// Numbers and checks belonged to the old exercise, so they don't carry over (last time's numbers for the
+    /// new one show as hints).
+    /// </summary>
+    private void ReplaceAt(int idx, string name)
+    {
+        var ex = Workout.Exercises[idx];
+        if (AppState.SameName(ex.Name, name)) return;
+        ex.Name = name;
+        ex.Sets = ex.Sets.Select(_ => new SetEntry()).ToList();
         Changed();
     }
 

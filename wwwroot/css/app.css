@@ -1587,8 +1587,9 @@ details[open] .more-stats-toggle::before { transform: rotate(90deg); }
 }
 .stats-btn:active { opacity: 1; background: var(--accent-bg-2); transform: scale(0.92); }
 .ex-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
-.ex-title .ex-name { flex: 0 1 auto; }
-.ex-title .stats-btn { margin: -6px -6px -6px -4px; }
+.ex-title .ex-name { flex: 1; }
+.nowrap { white-space: nowrap; }
+.ex-title .stats-btn { margin: -8px -6px -6px 2px; }
 .routine-ex { width: 100%; }
 .routine-ex .stats-btn { margin: -6px 0; width: 40px; height: 40px; }
 .dw-ex-name { display: flex; align-items: center; gap: 4px; }

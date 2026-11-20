@@ -75,25 +75,55 @@ public static class ExerciseInfo
         return ExerciseType.Weight;
     }
 
-    // Ordered: first match wins, so more specific keys come first. Keys match at word starts;
-    // a trailing space means "whole word only".
+    // Ordered: first match wins, so specific phrases come before the general words they contain
+    // ("chest supported row" is Back, "reverse pec deck" is Shoulders, "close grip bench" is Triceps, "nordic curl" is Legs).
+    // Keys match at word starts; a trailing space means "whole word only".
+    // Grouped by the main muscle doing the work: dip machines are Triceps, shrugs (traps) are Back, deadlifts (hips/legs drive it) are Legs,
+    // RDLs/good mornings (hamstrings) are Legs, hammer curls are Biceps, wrist/reverse curls and grip work are Forearms.
     private static readonly (string Key, string Group)[] MuscleMap =
     {
+        // Cardio
         ("stair", "Cardio"), ("treadmill", "Cardio"), ("cycling", "Cardio"), ("bike", "Cardio"), ("elliptical", "Cardio"),
-        ("rowing machine", "Cardio"), ("run", "Cardio"), ("jog", "Cardio"), ("battle rope", "Cardio"), ("basketball", "Cardio"),
+        ("rowing machine", "Cardio"), ("rower ", "Cardio"), ("run", "Cardio"), ("jog", "Cardio"), ("battle rope", "Cardio"),
+        ("basketball", "Cardio"), ("incline walk", "Cardio"), ("jump rope", "Cardio"), ("sled push", "Cardio"), ("sled pull", "Cardio"), ("swim", "Cardio"),
+        // Calves (before squat/leg press: "hack squat calf raise", "leg press calf raise")
         ("calf", "Calves"), ("calves", "Calves"),
-        ("wrist", "Forearms/Traps"), ("shrug", "Forearms/Traps"), ("forearm", "Forearms/Traps"), ("farmer", "Forearms/Traps"),
-        ("reverse fly", "Shoulders"), ("rear delt", "Shoulders"), ("face pull", "Shoulders"), ("upright row", "Shoulders"),
-        ("lateral raise", "Shoulders"), ("front raise", "Shoulders"), ("shoulder", "Shoulders"), ("overhead press", "Shoulders"),
-        ("military press", "Shoulders"), ("arnold", "Shoulders"),
-        ("leg curl", "Legs"), ("leg extension", "Legs"), ("leg press", "Legs"), ("squat", "Legs"), ("deadlift", "Legs"), ("rdl ", "Legs"),
-        ("lunge", "Legs"), ("hip thrust", "Legs"), ("glute", "Legs"), ("adductor", "Legs"), ("abductor", "Legs"), ("hamstring", "Legs"),
-        ("crunch", "Abs"), ("plank", "Abs"), ("sit up", "Abs"), ("leg raise", "Abs"), ("knee raise", "Abs"), ("ab ", "Abs"), ("abs ", "Abs"), ("oblique", "Abs"),
-        ("tricep", "Triceps"), ("pushdown", "Triceps"), ("skull", "Triceps"), ("dip", "Triceps"), ("kickback", "Triceps"),
+        // Forearms (before curl: "reverse curl", "wrist curl")
+        ("wrist", "Forearms"), ("forearm", "Forearms"), ("reverse curl", "Forearms"), ("reverse grip curl", "Forearms"),
+        ("farmer", "Forearms"), ("plate pinch", "Forearms"), ("grip trainer", "Forearms"), ("gripper", "Forearms"), ("hand grip", "Forearms"), ("dead hang", "Forearms"),
+        // Specific phrases that would otherwise hit the wrong group
+        ("reverse fly", "Shoulders"), ("reverse flye", "Shoulders"), ("reverse pec", "Shoulders"), ("rear delt", "Shoulders"),
+        ("face pull", "Shoulders"), ("upright row", "Shoulders"),
+        ("close grip bench", "Triceps"), ("diamond push", "Triceps"), ("jm press", "Triceps"), ("french press", "Triceps"),
+        ("nordic", "Legs"), ("hamstring", "Legs"), ("leg curl", "Legs"), ("leg extension", "Legs"), ("leg press", "Legs"),
+        ("romanian", "Legs"), ("rdl ", "Legs"), ("stiff leg", "Legs"), ("good morning", "Legs"),
+        ("chest supported", "Back"), ("shrug", "Back"), ("deadlift", "Legs"), ("rack pull", "Back"),
+        ("back extension", "Back"), ("hyperextension", "Back"),
+        // Abs (before leg/press words: "hanging leg raise", "pallof press")
+        ("crunch", "Abs"), ("plank", "Abs"), ("sit up", "Abs"), ("situp", "Abs"), ("leg raise", "Abs"), ("knee raise", "Abs"),
+        ("ab ", "Abs"), ("abs ", "Abs"), ("oblique", "Abs"), ("russian twist", "Abs"), ("woodchop", "Abs"), ("wood chop", "Abs"),
+        ("side bend", "Abs"), ("dead bug", "Abs"), ("pallof", "Abs"), ("v up", "Abs"), ("toes to bar", "Abs"), ("hollow", "Abs"),
+        ("captain", "Abs"), ("rollout", "Abs"),
+        // Shoulders
+        ("lateral raise", "Shoulders"), ("front raise", "Shoulders"), ("y raise", "Shoulders"), ("lu raise", "Shoulders"),
+        ("shoulder", "Shoulders"), ("overhead press", "Shoulders"), ("military press", "Shoulders"), ("arnold", "Shoulders"),
+        ("push press", "Shoulders"), ("landmine press", "Shoulders"), ("behind the neck", "Shoulders"),
+        // Legs
+        ("squat", "Legs"), ("lunge", "Legs"), ("step up", "Legs"), ("hip thrust", "Legs"), ("glute", "Legs"),
+        ("adduct", "Legs"), ("abduct", "Legs"), ("pull through", "Legs"), ("kettlebell swing", "Legs"),
+        // Back (before chest: no chest exercise says "row")
+        ("row", "Back"), ("pulldown", "Back"), ("pull down", "Back"), ("pull up", "Back"), ("pullup", "Back"),
+        ("chin up", "Back"), ("chinup", "Back"), ("lat ", "Back"), ("lats ", "Back"), ("pullover", "Back"),
+        // Triceps
+        ("tricep", "Triceps"), ("pushdown", "Triceps"), ("push down", "Triceps"), ("skull", "Triceps"), ("dip", "Triceps"),
+        ("kickback", "Triceps"), ("overhead dumbbell extension", "Triceps"), ("overhead extension", "Triceps"),
+        ("cable extension", "Triceps"),
+        // Biceps
         ("curl", "Biceps"), ("bicep", "Biceps"),
-        ("bench press", "Chest"), ("chest", "Chest"), ("fly", "Chest"), ("flye", "Chest"), ("pec ", "Chest"), ("push up", "Chest"), ("pushup", "Chest"),
-        ("row", "Back"), ("pulldown", "Back"), ("pull up", "Back"), ("pullup", "Back"), ("chin up", "Back"), ("chinup", "Back"),
-        ("lat ", "Back"), ("lats ", "Back"), ("pullover", "Back"),
+        // Chest
+        ("bench press", "Chest"), ("chest", "Chest"), ("fly", "Chest"), ("flye", "Chest"), ("pec ", "Chest"), ("crossover", "Chest"),
+        ("push up", "Chest"), ("pushup", "Chest"), ("floor press", "Chest"), ("incline", "Chest"), ("decline press", "Chest"),
+        ("svend", "Chest"),
     };
 
     public static string MuscleGroup(string name)

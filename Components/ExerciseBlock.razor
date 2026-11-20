@@ -17,8 +17,9 @@
     <div class="ex-head">
         <div class="ex-title">
             <ExAvatar Name="@Exercise.Name" />
-            <span class="ex-name">@Exercise.Name</span>
-            <StatsButton Name="@Exercise.Name" OnClick="() => OnStats.InvokeAsync(Exercise.Name)" />
+            @* the last word and the button never split, so a wrapped name doesn't leave the button alone on a line *@
+            @{ var cut = Exercise.Name.TrimEnd().LastIndexOf(' ') + 1; }
+            <span class="ex-name">@Exercise.Name[..cut]<span class="nowrap">@Exercise.Name[cut..]<StatsButton Name="@Exercise.Name" OnClick="() => OnStats.InvokeAsync(Exercise.Name)" /></span></span>
         </div>
         <button class="icon-btn accent" @onclick="() => _collapsed = !_collapsed" aria-label="Collapse">
             <Icon Name="@(_collapsed ? "chevron-down" : "chevron-up")" Stroke="2.6" />
