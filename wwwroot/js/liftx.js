@@ -131,23 +131,28 @@
         if (document.visibilityState === 'visible') acquireLock();
     });
 
-    // ── Custom keypad: scroll the box being edited so it sits above the keypad ──
+    // ── Custom keypad: scroll the box being edited so it sits inside the visible part of the lift ──
+    // The lift scrolls in .wk-scroll (not the page), and that box already ends where the keypad starts.
     L.revealAboveKeypad = function () {
         requestAnimationFrame(function () {
             const el = document.querySelector('.set-input.editing');
-            const pad = document.querySelector('.numpad');
-            if (!el || !pad) return;
+            const sc = document.querySelector('.wk-scroll');
+            if (!el || !sc) return;
             const r = el.getBoundingClientRect();
-            const limit = window.innerHeight - pad.offsetHeight - 16;
-            const header = document.querySelector('.wk-header');
-            const top = header ? header.getBoundingClientRect().bottom + 12 : 12;
-            if (r.bottom > limit) window.scrollBy({ top: r.bottom - limit, behavior: 'smooth' });
-            else if (r.top < top) window.scrollBy({ top: r.top - top, behavior: 'smooth' });
+            const box = sc.getBoundingClientRect();
+            const limit = box.bottom - 16;
+            const top = box.top + 12;
+            if (r.bottom > limit) sc.scrollBy({ top: r.bottom - limit, behavior: 'smooth' });
+            else if (r.top < top) sc.scrollBy({ top: r.top - top, behavior: 'smooth' });
         });
     };
 
     // ── Misc UI helpers ──
-    L.scrollTop = function () { window.scrollTo(0, 0); };
+    L.scrollTop = function () {
+        window.scrollTo(0, 0);
+        const sc = document.querySelector('.wk-scroll');
+        if (sc) sc.scrollTop = 0;
+    };
     L.scrollToBottom = function () {
         requestAnimationFrame(function () { window.scrollTo(0, document.documentElement.scrollHeight); });
     };

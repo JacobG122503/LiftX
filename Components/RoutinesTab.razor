@@ -47,14 +47,14 @@
             @foreach (var ex in shown)
             {
                 var exName = ex.Name;
-                <button class="routine-ex" @onclick="() => _statsFor = exName">
+                <div class="routine-ex">
                     <ExAvatar Name="@ex.Name" />
                     <div class="row-main">
                         <div class="row-title">@ex.Name</div>
                         <div class="row-sub">@ex.Sets @(ex.Sets == 1 ? "set" : "sets")</div>
                     </div>
-                    <Icon Name="chart" Size="18" Class="row-chart-hint" />
-                </button>
+                    <StatsButton Name="@exName" OnClick="() => _statsFor = exName" />
+                </div>
             }
             <div class="routine-foot">
                 @if (more > 0)

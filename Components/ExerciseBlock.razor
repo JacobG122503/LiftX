@@ -15,10 +15,11 @@
 
 <div class="ex-card">
     <div class="ex-head">
-        <button class="ex-stats-tap" @onclick="() => _stats = true" aria-label="Stats for @Exercise.Name">
+        <div class="ex-title">
             <ExAvatar Name="@Exercise.Name" />
             <span class="ex-name">@Exercise.Name</span>
-        </button>
+            <StatsButton Name="@Exercise.Name" OnClick="() => OnStats.InvokeAsync(Exercise.Name)" />
+        </div>
         <button class="icon-btn accent" @onclick="() => _collapsed = !_collapsed" aria-label="Collapse">
             <Icon Name="@(_collapsed ? "chevron-down" : "chevron-up")" Stroke="2.6" />
         </button>
@@ -119,17 +120,14 @@
     }
 </div>
 
-@if (_stats)
-{
-    <ExerciseStatsModal Name="@Exercise.Name" OnClose="() => _stats = false" />
-}
-
 @code {
     [Parameter, EditorRequired] public Workout Workout { get; set; } = default!;
     [Parameter, EditorRequired] public WorkoutExercise Exercise { get; set; } = default!;
     [Parameter] public bool Live { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
     [Parameter] public EventCallback OnMenu { get; set; }
+    /// <summary>Tapped the stats button. The lift shows the stats popup outside its scroll box (see WorkoutView).</summary>
+    [Parameter] public EventCallback<string> OnStats { get; set; }
     [Parameter, EditorRequired] public KeypadState Keypad { get; set; } = default!;
 
     private static IReadOnlyList<SetField> FieldsFor(ExerciseType t) => t switch
@@ -167,7 +165,6 @@
     }
 
     private bool _collapsed;
-    private bool _stats;
 
     // Sets checked in the last moment: they get the fill / PR animation (not replayed on re-render or resume)
     private readonly HashSet<SetEntry> _justDone = new();
@@ -179,74 +176,44 @@
     private int _animSeq;
     private HashSet<SetEntry> _lastPr = new();
 
-    // All-time bests for this exercise from finished lifts (cached until the data changes).
-    // BestWeight × BestReps is the set with the highest estimated 1-rep max.
-    private record Bests(double Est1RM, double BestWeight, int BestReps, int Reps, int Seconds);
-    private Bests? _best;
+    // Your best for this exercise before this lift (cached until the data changes, or the exercise is
+    // replaced — Replace keeps this same card and only changes its name). Null the first time you do it.
+    private PrBar? _best;
     private int _bestVersion = -1;
+    private string? _bestName;
 
-    private Bests? Best()
+    private PrBar? Best()
     {
-        if (_bestVersion == S.Version) return _best;
+        if (_bestVersion == S.Version && _bestName == Exercise.Name) return _best;
         _bestVersion = S.Version;
-        var sets = S.HistoryOf(Exercise.Name).Where(h => h.W.Id != Workout.Id).SelectMany(h => h.E.Sets).ToList();
-        var top = sets.Where(s => s.Weight > 0 && s.Reps > 0).MaxBy(s => ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value));
-        _best = sets.Count == 0 ? null : new Bests(
-            top == null ? 0 : ExerciseInfo.Est1RM(top.Weight!.Value, top.Reps!.Value),
-            top?.Weight ?? 0,
-            top?.Reps ?? 0,
-            sets.Select(s => s.Reps ?? 0).DefaultIfEmpty(0).Max(),
-            sets.Select(s => s.Seconds ?? 0).DefaultIfEmpty(0).Max());
+        _bestName = Exercise.Name;
+        _best = PrBar.From(S.HistoryOf(Exercise.Name).Where(h => h.W.Id != Workout.Id).SelectMany(h => h.E.Sets));
         return _best;
     }
 
     /// <summary>
-    /// Which checked sets are PRs. Goes through them in the order you checked them: a set is gold only if it
-    /// beats your all-time best (weight lifts: estimated 1-rep max) AND every set of this exercise you checked before it in this lift.
-    /// Never gold the first time you ever do an exercise.
+    /// Which checked sets are PRs (the shared rule in <see cref="PrBar"/>, also used for gold days on the calendar).
+    /// Goes through them in the order you checked them: a set is gold only if it beats your all-time best
+    /// AND every set of this exercise you checked before it in this lift.
     /// </summary>
-    private HashSet<SetEntry> PrSets(ExerciseType type, Bests? best)
+    private HashSet<SetEntry> PrSets(ExerciseType type, PrBar? best)
     {
         var result = new HashSet<SetEntry>();
         _run = null;
         if (best == null) return result;
-        double est = best.Est1RM, bestW = best.BestWeight;
-        int bestR = best.BestReps, reps = best.Reps, secs = best.Seconds;
+        var bar = new PrBar(best.Est1RM, best.Weight, best.WeightReps, best.Reps, best.Seconds);
         var checkedSets = Workout.Exercises
             .Where(e => AppState.SameName(e.Name, Exercise.Name))
             .SelectMany(e => e.Sets)
-            .Where(s => s.Done)
-            .OrderBy(s => s.DoneOrder ?? 0);
-
-        foreach (var s in checkedSets)
-        {
-            switch (type)
-            {
-                case ExerciseType.Weight when s.Weight > 0 && s.Reps > 0:
-                    var e1 = ExerciseInfo.Est1RM(s.Weight!.Value, s.Reps!.Value);
-                    if (e1 > est + 0.05) // gold = best estimated 1-rep max ever
-                    {
-                        result.Add(s);
-                        est = e1; bestW = s.Weight.Value; bestR = s.Reps.Value;
-                    }
-                    break;
-                case ExerciseType.Reps when best.Reps > 0:
-                    if (s.Reps > reps) result.Add(s);
-                    reps = Math.Max(reps, s.Reps ?? 0);
-                    break;
-                case ExerciseType.Duration when best.Seconds > 0:
-                    if (s.Seconds > secs) result.Add(s);
-                    secs = Math.Max(secs, s.Seconds ?? 0);
-                    break;
-            }
-        }
-        _run = new Running(est, bestW, bestR, reps, secs);
+            .Where(s => s.Done);
+        foreach (var s in PrBar.InDoneOrder(checkedSets))
+            if (bar.Beat(s, type)) result.Add(s);
+        _run = bar;
         return result;
     }
 
     // The best to beat right now: all-time best, raised by anything better checked in this lift
-    private record Running(double Est1RM, double Weight, int WeightReps, int Reps, int Seconds);
-    private Running? _run;
+    private PrBar? _run;
 
     /// <summary>
     /// What beats your PR: for weight lifts, more reps at your PR weight, or the reps needed at the next

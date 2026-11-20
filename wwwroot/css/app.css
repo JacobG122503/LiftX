@@ -64,6 +64,9 @@ body::before {
     background: var(--bg-grad, var(--bg));
     pointer-events: none;
 }
+/* Nothing may make the page wider than the screen (iOS zooms the whole app out when it is).
+   clip, not hidden, so the sticky top bars keep working. */
+html, body { overflow-x: clip; }
 body {
     background: transparent;
     color: var(--text);
@@ -601,6 +604,9 @@ select.input {
     gap: 12px;
     animation: slide-up 0.2s ease-out;
 }
+/* The sheet scrolls; its sections never shrink. Without this, a section with overflow:hidden (the gold
+   New PRs box, .sheet-list) gets squashed to a sliver when the sheet is taller than the screen. */
+.sheet > * { flex-shrink: 0; }
 .sheet--tall { min-height: 55vh; }
 .sheet-head {
     display: flex;
@@ -824,10 +830,26 @@ select.input {
 .stepper-val { min-width: 64px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ── Live lift ─────────────────────────────────────────────────────────── */
-.wk { min-height: 100vh; min-height: 100dvh; }
+/* A fixed full-screen frame: header on top, the lift scrolls in .wk-scroll, rest timer + keypad below it.
+   Nothing here uses position:fixed bottom:0, which iOS 26 Safari moves around while the page scrolls. */
+.wk {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+html:has(.wk) { overscroll-behavior: none; }
+.wk-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
 .wk-header {
-    position: sticky;
-    top: 0;
+    flex: none;
+    position: relative;
     z-index: 30;
     display: flex;
     align-items: center;
@@ -868,7 +890,7 @@ select.input {
 .finish-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--accent-dark); }
 
 .wk-body { max-width: var(--max-w); margin: 0 auto; padding: 12px 10px 0; }
-.wk-bottom-space { height: calc(120px + var(--safe-bottom)); }
+.wk-bottom-space { height: calc(32px + var(--safe-bottom)); }
 .edit-date { margin-bottom: 12px; }
 .edit-date .field-label { margin-top: 0; }
 .wk-notes {
@@ -1001,12 +1023,10 @@ select.input {
 }
 .add-set:active { background: var(--surface-3); }
 
-/* Rest timer bar: docked to the very bottom of the lift screen */
+/* Rest timer bar: docked to the very bottom of the lift screen (last item in the .wk column) */
 .rest-bar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    flex: none;
+    position: relative;
     z-index: 40;
     background: var(--surface-3);
     overflow: hidden;
@@ -1096,7 +1116,7 @@ select.input {
 .hist-sets { color: var(--text-2); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 
 /* ── Calendar ──────────────────────────────────────────────────────────── */
-.cal-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
+.cal-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
 .cal-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 4px; text-align: center; }
 .cal-stat-v { font-size: 1.5rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
 .cal-stat-l { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
@@ -1113,9 +1133,13 @@ select.input {
     background: var(--surface);
 }
 .cal-month-count { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+/* minmax(0, 1fr): columns are always exactly 1/7 of the width. With plain 1fr a column can grow to its
+   cell's size, and the aspect-ratio day cells sometimes came out huge on reopening the app, making the page
+   wider than the screen so iOS zoomed out until you switched tabs. */
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .cal-dow { color: color-mix(in srgb, var(--accent) 60%, var(--muted)); font-weight: 600; text-align: center; font-size: 0.95rem; margin-bottom: 6px; }
 .cal-day {
+    min-width: 0;
     aspect-ratio: 1 / 1.15;
     border-radius: 12px;
     background: var(--surface);
@@ -1138,6 +1162,55 @@ select.input {
 .cal-day.has.today { box-shadow: inset 0 0 0 2px var(--text); }
 .cal-day.future { opacity: 0.45; }
 .cal-multi { font-size: 0.62rem; font-weight: 800; color: var(--accent); position: absolute; bottom: 3px; }
+/* A day you beat a PR (best estimated 1-rep max, same rule as the gold set rows): gold, with the same shine */
+.cal-day.pr {
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(247, 201, 72, 0.22), rgba(255, 223, 128, 0.38) 55%, rgba(247, 201, 72, 0.24));
+    border-color: var(--gold-2);
+    color: var(--gold-text);
+}
+.cal-day.pr .cal-multi { color: var(--gold-text); }
+/* the shine moves with transform (cheap even with lots of gold days on screen) */
+.cal-day.pr::after,
+.dw-set.pr::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 244, 205, 0.38) 50%, transparent 70%);
+    transform: translateX(-110%);
+    animation: tile-shine 5.6s ease-in-out 1.4s infinite;
+}
+@keyframes tile-shine {
+    0% { transform: translateX(-110%); }
+    28%, 100% { transform: translateX(110%); }
+}
+/* Sets in the day list: a grid of equal chips, so a gold PR set stands out by colour, not by size */
+.dw-sets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 6px;
+    margin-top: 4px;
+}
+.dw-set {
+    position: relative;
+    overflow: hidden;
+    padding: 6px 4px;
+    border-radius: 9px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-weight: 600;
+    text-align: center;
+    white-space: nowrap;
+}
+.dw-set.wide { grid-column: span 2; }
+.dw-set.pr {
+    background: linear-gradient(90deg, rgba(247, 201, 72, 0.20), rgba(255, 223, 128, 0.34) 55%, rgba(247, 201, 72, 0.22));
+    box-shadow: inset 0 0 0 1px rgba(247, 201, 72, 0.5);
+    color: var(--gold-text);
+    font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) { .cal-day.pr::after, .dw-set.pr::after { animation: none; display: none; } }
 
 .day-workout { background: var(--surface-2); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .dw-name { font-size: 1.1rem; font-weight: 800; }
@@ -1498,14 +1571,28 @@ details[open] .more-stats-toggle::before { transform: rotate(90deg); }
 }
 
 /* ── Tap-for-stats, routine popup, update stamp ────────────────────────── */
-.ex-stats-tap { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; }
-.ex-stats-tap:active .ex-name { color: var(--accent); }
-.routine-ex { width: 100%; text-align: left; border-radius: 12px; }
-.routine-ex:active { background: var(--surface-2); }
-.row-chart-hint { color: var(--muted); opacity: 0.6; }
-.dw-ex-name { display: inline-flex; align-items: center; gap: 6px; text-align: left; }
-.dw-ex-name .icon { color: var(--accent); opacity: 0.8; }
-.re-name { text-align: left; }
+/* The stats button: same little chart everywhere (the exercise name itself isn't tappable) */
+.stats-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    margin: -6px -4px;
+    border-radius: 10px;
+    color: var(--accent);
+    opacity: 0.85;
+    vertical-align: middle;
+}
+.stats-btn:active { opacity: 1; background: var(--accent-bg-2); transform: scale(0.92); }
+.ex-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.ex-title .ex-name { flex: 0 1 auto; }
+.ex-title .stats-btn { margin: -6px -6px -6px -4px; }
+.routine-ex { width: 100%; }
+.routine-ex .stats-btn { margin: -6px 0; width: 40px; height: 40px; }
+.dw-ex-name { display: flex; align-items: center; gap: 4px; }
+.re-name { text-align: left; display: flex; align-items: center; gap: 4px; }
 .sheet-row--stack { flex-direction: column; align-items: stretch; gap: 8px; }
 .fs-overlay--top, .overlay--top { z-index: 260; }
 .update-stamp {
@@ -1694,13 +1781,12 @@ details[open] .more-stats-toggle::before { transform: rotate(90deg); }
 @keyframes caret-blink { 50% { opacity: 0; } }
 /* iOS only sends taps from "clickable" areas; this makes tap-anywhere-to-close work on iPhone */
 .wk.keypad-open { cursor: pointer; }
-.wk.keypad-open .wk-bottom-space { height: calc(240px + var(--safe-bottom)); }
+/* The keypad takes the timer's spot while it's open, like before */
+.wk.keypad-open .rest-bar { display: none; }
 
 .numpad {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    flex: none;
+    position: relative;
     z-index: 60;
     background: var(--surface);
     border-top: 1px solid var(--border);

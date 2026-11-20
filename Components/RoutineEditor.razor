@@ -19,7 +19,7 @@
             <div class="card re-row" @key="ex">
                 <ExAvatar Name="@ex.Name" />
                 <div class="re-main">
-                    <button class="row-title re-name" @onclick="() => _statsFor = ex.Name">@ex.Name</button>
+                    <div class="row-title re-name">@ex.Name <StatsButton Name="@ex.Name" Size="16" OnClick="() => _statsFor = ex.Name" /></div>
                     <div class="stepper">
                         <button class="stepper-btn" @onclick="() => ex.Sets = Math.Max(1, ex.Sets - 1)" aria-label="Fewer sets"><Icon Name="minus" Size="18" Stroke="2.6" /></button>
                         <span class="stepper-val">@ex.Sets @(ex.Sets == 1 ? "set" : "sets")</span>

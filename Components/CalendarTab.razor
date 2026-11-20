@@ -13,6 +13,7 @@
     var end = lastKey > today ? lastKey : today;
     var month = new DateOnly(first.Year, first.Month, 1);
     var endMonth = new DateOnly(end.Year, end.Month, 1);
+    var prDays = S.Prs.Days; // days you set a PR: gold
 }
 
 <div class="cal-stats">
@@ -45,7 +46,7 @@
             {
                 var day = new DateOnly(m.Year, m.Month, d);
                 var n = byDay.TryGetValue(day, out var c) ? c : 0;
-                <button class="cal-day @(n > 0 ? "has" : "") @(day == today ? "today" : "") @(day > today ? "future" : "")"
+                <button class="cal-day @(n > 0 ? "has" : "") @(n > 0 && prDays.Contains(day) ? "pr" : "") @(day == today ? "today" : "") @(day > today ? "future" : "")"
                         @onclick="() => _day = day">
                     <span>@d</span>
                     @if (n > 1)

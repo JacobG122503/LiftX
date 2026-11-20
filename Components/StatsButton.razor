@@ -1,0 +1,10 @@
+@* The little chart button that opens an exercise's stats. The same everywhere; the name itself isn't tappable. *@
+<button class="stats-btn" @onclick="OnClick" @onclick:stopPropagation="true" aria-label="Stats for @Name">
+    <Icon Name="chart" Size="@Size" />
+</button>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public int Size { get; set; } = 18;
+}

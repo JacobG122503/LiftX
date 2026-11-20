@@ -477,7 +477,9 @@ public class AppState
         if (Active == null) return false;
         var w = Json.Clone(Active);
         foreach (var e in w.Exercises)
-            e.Sets = e.Sets.Where(s => s.Done || (includeUnchecked && s.HasValues)).Select(s => s.Values()).ToList();
+            // Keep the check order on checked sets: it decides which set was the PR (gold on the calendar)
+            e.Sets = e.Sets.Where(s => s.Done || (includeUnchecked && s.HasValues))
+                .Select(s => { var v = s.Values(); if (s.Done) v.DoneOrder = s.DoneOrder; return v; }).ToList();
         w.Exercises.RemoveAll(e => e.Sets.Count == 0);
         if (string.IsNullOrWhiteSpace(w.Notes)) w.Notes = null;
         if (w.Exercises.Count == 0) return false;
@@ -510,6 +512,44 @@ public class AppState
     public StatsSnapshot Stats => _stats is { } st && st.Version == Version
         ? st
         : _stats = StatsEngine.Build(Data.Workouts, TypeOf, Version);
+
+    // ── Past PRs (gold days on the calendar) ───────────────────────────────
+
+    /// <summary>Every finished set that was a PR when it was done, and the days they happened on.</summary>
+    public sealed record PrHistory(int Version, HashSet<SetEntry> Sets, HashSet<DateOnly> Days);
+    private PrHistory? _prs;
+
+    public PrHistory Prs => _prs is { } p && p.Version == Version ? p : _prs = BuildPrs();
+
+    /// <summary>
+    /// Replays every finished lift oldest first with the same rule a live lift uses (<see cref="PrBar"/>):
+    /// each lift is judged against everything before it, sets in the order they were checked.
+    /// Worked out from the data each time, so imported, edited or deleted lifts are always right.
+    /// </summary>
+    private PrHistory BuildPrs()
+    {
+        var sets = new HashSet<SetEntry>(ReferenceEqualityComparer.Instance);
+        var days = new HashSet<DateOnly>();
+        // Best so far per exercise (running, so this stays fast on years of lifts)
+        var best = new Dictionary<string, PrBar>(StringComparer.OrdinalIgnoreCase);
+        foreach (var w in Data.Workouts.OrderBy(w => w.Date))
+        {
+            foreach (var g in w.Exercises.GroupBy(e => e.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var mine = g.SelectMany(e => e.Sets).ToList();
+                if (mine.Count == 0) continue;
+                if (best.TryGetValue(g.Key, out var b))
+                {
+                    var bar = new PrBar(b.Est1RM, b.Weight, b.WeightReps, b.Reps, b.Seconds);
+                    var type = TypeOf(g.Key);
+                    foreach (var s in PrBar.InDoneOrder(mine))
+                        if (bar.Beat(s, type)) { sets.Add(s); days.Add(DateOnly.FromDateTime(w.Date)); }
+                }
+                best[g.Key] = PrBar.Merge(b, PrBar.From(mine)!);
+            }
+        }
+        return new PrHistory(Version, sets, days);
+    }
 
     // ── Editing past lifts ───────────────────────────────────────────────
 

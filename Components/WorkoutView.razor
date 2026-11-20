@@ -32,6 +32,9 @@
         }
     </header>
 
+    @* The lift scrolls inside this box, not the page. iOS 26 Safari lets position:fixed bars drift while the
+       page scrolls (worse after a keyboard has been up), so the timer and keypad sit below it in normal layout. *@
+    <div class="wk-scroll">
     <div class="wk-body">
         @if (!Live)
         {
@@ -53,7 +56,7 @@
             var idx = i;
             var ex = Workout.Exercises[i];
             <ExerciseBlock @key="ex" Workout="Workout" Exercise="ex" Live="Live" Keypad="_keypad"
-                           OnChanged="Changed" OnMenu="() => ExerciseMenu(idx)" />
+                           OnChanged="Changed" OnMenu="() => ExerciseMenu(idx)" OnStats="n => _statsFor = n" />
         }
 
         @if (Workout.Exercises.Count == 0)
@@ -68,6 +71,7 @@
             <button class="btn-3d btn-big" @onclick="OpenPicker"><Icon Name="plus" Stroke="3" /> Exercise</button>
         </div>
         <div class="wk-bottom-space"></div>
+    </div>
     </div>
 
     @if (Live)
@@ -86,6 +90,11 @@
 {
     <RestTimerSheet Workout="Workout" OnClose="() => _restSheet = false" />
 }
+@if (_statsFor != null)
+{
+    @* Outside .wk-scroll on purpose: iOS Safari clips a fixed popup to a scrolling parent and drags it along. *@
+    <ExerciseStatsModal Name="@_statsFor" OnClose="() => _statsFor = null" />
+}
 @if (_finish)
 {
     <FinishSheet OnClose="() => _finish = false" />
@@ -96,6 +105,7 @@
     [Parameter] public bool Live { get; set; }
 
     private bool _picker, _restSheet, _finish, _notesOpen;
+    private string? _statsFor;
     private readonly KeypadState _keypad = new();
     private int _revealed;
 

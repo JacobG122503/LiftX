@@ -3,6 +3,7 @@
 
 @{
     var workouts = S.Data.Workouts.Where(w => DateOnly.FromDateTime(w.Date) == Day).OrderBy(w => w.Date).ToList();
+    var prs = S.Prs.Sets; // sets that were a PR when you did them: gold
 }
 
 <div class="overlay overlay--bottom" @onclick="OnClose">
@@ -40,8 +41,15 @@
                 {
                     var type = S.TypeOf(e.Name);
                     <div class="dw-ex">
-                        <button class="dw-ex-name" @onclick="() => _statsFor = e.Name">@e.Name <Icon Name="chart" Size="15" /></button>
-                        <div class="dw-sets">@string.Join(",  ", e.Sets.Select(s => ExerciseInfo.FormatSet(s, type)))</div>
+                        <div class="dw-ex-name">@e.Name <StatsButton Name="@e.Name" Size="16" OnClick="() => _statsFor = e.Name" /></div>
+                        <div class="dw-sets">
+                            @* Every set is the same-size chip; PRs are the gold, shiny ones. Long ones (cardio) take two spots. *@
+                            @foreach (var set in e.Sets)
+                            {
+                                var text = ExerciseInfo.FormatSet(set, type);
+                                <span class="dw-set @(prs.Contains(set) ? "pr" : "") @(text.Length > 9 ? "wide" : "")">@text</span>
+                            }
+                        </div>
                     </div>
                 }
                 <div class="dw-actions">
